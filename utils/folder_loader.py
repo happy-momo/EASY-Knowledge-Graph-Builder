@@ -174,7 +174,7 @@ def get_folder_info(folder_path: str) -> Dict:
         'all_files_count': len(all_files),
         'total_size': total_size,
         'type_counts': type_counts,
-        'has_subfolders': any(f.relative_path != f.name for f in all_files)
+        'has_subfolders': any(f['relative_path'] != f['name'] for f in all_files)
     }
 
 

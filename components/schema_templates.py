@@ -6,6 +6,7 @@ Schema模板选择组件（专业版）
 import streamlit as st
 import yaml
 from typing import Dict, Any, Optional, Tuple
+from html import escape as html_escape
 
 from config.app_config import SCHEMA_TEMPLATES, HELP_TEXTS
 
@@ -14,7 +15,7 @@ def render_schema_selection() -> Tuple[Optional[Dict], str]:
     """
     渲染Schema选择界面（专业版）
     """
-    st.markdown('<h3 style="color: #000000; margin-bottom: 0.5rem;">选择Schema配置方式</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">选择Schema配置方式</h3>', unsafe_allow_html=True)
 
     selection_mode = st.radio(
         "配置方式",
@@ -58,23 +59,13 @@ def render_template_selection() -> Tuple[Optional[Dict], str]:
         border_color = "#4F46E5" if is_selected else "#E2E8F0"
         left_border = "4px solid #4F46E5" if is_selected else "4px solid transparent"
 
-        card_html = f"""
-        <div style="padding: 1rem; margin-bottom: 0.5rem;
-                    background: #FFFFFF; border: 1px solid {border_color};
-                    border-left: {left_border};
-                    border-radius: 10px;
-                    box-shadow: {'0 2px 4px rgba(0,0,0,0.06)' if is_selected else '0 1px 2px rgba(0,0,0,0.04)'}">
-            <div style="font-weight: 600; color: #000000; margin-bottom: 0.35rem; font-size: 1rem;">
-                {name}
-            </div>
-            <div style="color: #000000; font-size: 0.875rem; margin-bottom: 0.5rem;">
-                {template['description']}
-            </div>
-            <div style="color: #000000; font-size: 0.8rem;">
-                实体: {len(template['entities'])}种 | 关系: {len(template['relationships'])}种
-            </div>
-        </div>
-        """.strip()
+        card_html = (
+            f'<div style="padding: 1rem; margin-bottom: 0.5rem; background: #FFFFFF; border: 1px solid {border_color}; border-left: {left_border}; border-radius: 10px; box-shadow: {"0 2px 4px rgba(0,0,0,0.06)" if is_selected else "0 1px 2px rgba(0,0,0,0.04)"};">'
+            f'<div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.35rem; font-size: 1rem;">{name}</div>'
+            f'<div style="color: var(--text-primary); font-size: 0.875rem; margin-bottom: 0.5rem;">{template["description"]}</div>'
+            f'<div style="color: var(--text-primary); font-size: 0.8rem;">实体: {len(template["entities"])}种 | 关系: {len(template["relationships"])}种</div>'
+            f'</div>'
+        )
 
         if st.button("选择", key=f"template_{name}", use_container_width=True):
             st.session_state['selected_template'] = name
@@ -87,7 +78,7 @@ def render_template_selection() -> Tuple[Optional[Dict], str]:
         schema_dict = SCHEMA_TEMPLATES[selected_name]
         schema_yaml_str = yaml.dump(schema_dict, allow_unicode=True, sort_keys=False)
 
-        st.markdown('<p style="color: #000000; font-weight: 600; margin: 1rem 0 0.5rem 0;">Schema预览</p>', unsafe_allow_html=True)
+        st.markdown('<p style="color: var(--text-primary); font-weight: 600; margin: 1rem 0 0.5rem 0;">Schema预览</p>', unsafe_allow_html=True)
         render_schema_preview(schema_dict)
 
         return schema_dict, schema_yaml_str
@@ -141,12 +132,13 @@ relationships:
     tail: "Entity2"
 """
 
-    st.markdown('<p style="color: #000000; font-weight: 600; margin-bottom: 0.25rem;">输入YAML Schema</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color: var(--text-primary); font-weight: 600; margin-bottom: 0.25rem;">输入YAML Schema</p>', unsafe_allow_html=True)
     yaml_input = st.text_area(
-        "",
+        "输入YAML Schema",
         value=default_yaml,
         height=250,
-        help="定义实体类型、属性和关系类型"
+        help="定义实体类型、属性和关系类型",
+        label_visibility="collapsed"
     )
 
     if st.button("解析Schema", key="parse_manual_schema", type="primary"):
@@ -170,61 +162,116 @@ relationships:
 
 
 def render_schema_preview(schema_dict: Dict):
-    """渲染Schema预览（专业版）- 使用 info-panel 替代 terminal"""
+    """渲染Schema预览 - 紧凑直观的图谱结构展示"""
     entities = schema_dict.get('entities', [])
     relationships = schema_dict.get('relationships', [])
 
-    # 构建 info-panel 内容
+    # ---- 顶部统计条 ----
+    total_props = sum(len(e.get('properties', [])) for e in entities)
+    stat_html = (
+        '<div style="display: flex; gap: 1.5rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #6B7280;">'
+        f'<span>📋 {len(entities)} 个实体</span>'
+        f'<span>🔗 {len(relationships)} 个关系</span>'
+        f'<span>🏷️ {total_props} 个属性</span>'
+        '</div>'
+    )
+    st.markdown(stat_html, unsafe_allow_html=True)
+
+    # ---- 实体表格 ----
+    entity_header = (
+        '<div style="display: grid; grid-template-columns: 100px 1fr; gap: 0; '
+        'background: #4F46E5; color: #FFFFFF; font-size: 0.75rem; font-weight: 600; '
+        'border-radius: 6px 6px 0 0; overflow: hidden;">'
+        '<div style="padding: 6px 10px;">实体类型</div>'
+        '<div style="padding: 6px 10px;">属性字段</div>'
+        '</div>'
+    )
+
     entity_rows = ""
     for i, entity in enumerate(entities):
         props = entity.get('properties', [])
-        props_str = ', '.join(props[:3])
-        if len(props) > 3:
-            props_str += f'... (+{len(props)-3})'
+        # 属性标签：每个属性一个小标签
+        prop_tags = ""
+        for p in props:
+            prop_tags += (
+                f'<span style="display: inline-block; background: #EEF2FF; color: #3730A3; '
+                f'font-size: 0.7rem; padding: 1px 6px; border-radius: 3px; margin: 1px 2px; '
+                f'white-space: nowrap;">{html_escape(str(p))}</span>'
+            )
+        if not prop_tags:
+            prop_tags = '<span style="color: #9CA3AF; font-size: 0.7rem;">无属性</span>'
+
+        bg = "#FFFFFF" if i % 2 == 0 else "#F9FAFB"
         entity_rows += (
-            f'<div style="display: flex; justify-content: space-between; align-items: center; '
-            f'padding: 8px 0; border-bottom: 1px solid #F1F5F9;">'
-            f'<span style="color: #000000; font-size: 0.875rem; font-weight: 500;">{entity["name"]}</span>'
-            f'<span style="color: #000000; font-size: 0.875rem; font-weight: 400;">{props_str}</span>'
-            '</div>'
+            f'<div style="display: grid; grid-template-columns: 100px 1fr; gap: 0; background: {bg}; '
+            f'border-bottom: 1px solid #F1F5F9; font-size: 0.78rem;">'
+            f'<div style="padding: 5px 10px; font-weight: 600; color: #1F2937;">{html_escape(entity["name"])}</div>'
+            f'<div style="padding: 5px 10px; line-height: 1.6;">{prop_tags}</div>'
+            f'</div>'
+        )
+
+    entity_table = (
+        '<div style="border: 1px solid #E5E7EB; border-radius: 6px; overflow: hidden; margin-bottom: 0.75rem;">'
+        f'{entity_header}{entity_rows}'
+        '</div>'
+    )
+    st.markdown(entity_table, unsafe_allow_html=True)
+
+    # ---- 关系图 ----
+    rel_header = (
+        '<div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; '
+        'background: #4F46E5; color: #FFFFFF; font-size: 0.75rem; font-weight: 600; '
+        'border-radius: 6px 6px 0 0; overflow: hidden;">'
+        '<div style="padding: 6px 10px;">头实体</div>'
+        '<div style="padding: 6px 10px; text-align: center;">关系</div>'
+        '<div style="padding: 6px 10px;">尾实体</div>'
+        '</div>'
+    )
+
+    # 构建实体颜色映射
+    entity_color_map = {}
+    color_palette = [
+        '#EEF2FF', '#FEF3C7', '#ECFDF5', '#FFF7ED', '#FDF2F8',
+        '#F0F9FF', '#F5F3FF', '#FFFBEB', '#F0FDF4', '#FEF2F2'
+    ]
+    text_palette = [
+        '#3730A3', '#92400E', '#065F46', '#9A3412', '#9D174D',
+        '#0369A1', '#6D28D9', '#854D0E', '#166534', '#991B1B'
+    ]
+    for i, entity in enumerate(entities):
+        entity_color_map[entity['name']] = (
+            color_palette[i % len(color_palette)],
+            text_palette[i % len(text_palette)]
         )
 
     rel_rows = ""
     for i, rel in enumerate(relationships):
+        head_name = html_escape(rel['head'])
+        rel_name = html_escape(rel['relation'])
+        tail_name = html_escape(rel['tail'])
+
+        head_bg, head_color = entity_color_map.get(rel['head'], ('#F3F4F6', '#374151'))
+        tail_bg, tail_color = entity_color_map.get(rel['tail'], ('#F3F4F6', '#374151'))
+
+        bg = "#FFFFFF" if i % 2 == 0 else "#F9FAFB"
         rel_rows += (
-            f'<div style="display: flex; justify-content: space-between; align-items: center; '
-            f'padding: 8px 0; border-bottom: 1px solid #F1F5F9;">'
-            f'<span style="color: #000000; font-size: 0.875rem; font-weight: 500;">{rel["head"]}</span>'
-            f'<span style="color: #000000; font-size: 0.875rem; font-weight: 400;">--{rel["relation"]}--&gt; {rel["tail"]}</span>'
-            '</div>'
+            f'<div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; background: {bg}; '
+            f'border-bottom: 1px solid #F1F5F9; font-size: 0.78rem; align-items: center;">'
+            f'<div style="padding: 5px 10px;"><span style="background: {head_bg}; color: {head_color}; '
+            f'padding: 1px 8px; border-radius: 4px; font-weight: 600;">{head_name}</span></div>'
+            f'<div style="padding: 5px 8px; text-align: center; color: #6B7280; font-size: 0.72rem; white-space: nowrap;">'
+            f'→ {rel_name} →</div>'
+            f'<div style="padding: 5px 10px;"><span style="background: {tail_bg}; color: {tail_color}; '
+            f'padding: 1px 8px; border-radius: 4px; font-weight: 600;">{tail_name}</span></div>'
+            f'</div>'
         )
 
-    panel_html = f"""
-    <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; margin-bottom: 1rem;">
-        <div style="font-weight: 600; color: #000000; font-size: 0.95rem; margin-bottom: 0.75rem;">
-            Schema Analysis
-        </div>
-        <div style="font-weight: 600; color: #000000; font-size: 0.75rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">
-            Entities ({len(entities)})
-        </div>
-        {entity_rows}
-        <div style="font-weight: 600; color: #000000; font-size: 0.75rem; margin: 0.75rem 0 0.5rem 0; text-transform: uppercase; letter-spacing: 0.05em;">
-            Relationships ({len(relationships)})
-        </div>
-        {rel_rows}
-    </div>
-    """.strip()
-
-    st.markdown(panel_html, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("实体类型", len(entities))
-    with col2:
-        st.metric("关系类型", len(relationships))
-    with col3:
-        total_props = sum(len(e.get('properties', [])) for e in entities)
-        st.metric("属性总数", total_props)
+    rel_table = (
+        '<div style="border: 1px solid #E5E7EB; border-radius: 6px; overflow: hidden;">'
+        f'{rel_header}{rel_rows}'
+        '</div>'
+    )
+    st.markdown(rel_table, unsafe_allow_html=True)
 
 
 def validate_schema(schema_dict: Dict) -> Tuple[bool, str]:

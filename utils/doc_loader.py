@@ -156,6 +156,18 @@ def load_document(uploaded_file, max_chunk_size=2000, min_chunk_size=500):
                 if para.text.strip():
                     text_content += para.text + "\n"
 
+        elif file_type == 'txt':
+            raw_bytes = uploaded_file.read()
+            # 尝试多种编码解码，优先 UTF-8
+            for encoding in ['utf-8', 'gbk', 'gb2312', 'gb18030', 'latin-1']:
+                try:
+                    text_content = raw_bytes.decode(encoding)
+                    break
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            else:
+                return None, "无法解码文本文件，请确认文件编码"
+
         else:
             return None, "不支持的文件格式"
 

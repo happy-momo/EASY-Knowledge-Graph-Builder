@@ -6,6 +6,7 @@
 
 import streamlit as st
 from typing import List, Dict, Optional
+from html import escape as html_escape
 
 from config.app_config import STEPS
 
@@ -62,12 +63,13 @@ def render_step_title(step_index: int):
     """
     if 0 <= step_index < len(STEPS):
         step = STEPS[step_index]
-        st.markdown(f"""
-        <div class="step-header" style="margin-bottom: 1.5rem;">
-            <h2 style="margin-bottom: 0.25rem;">{step['title']}</h2>
-            <p style="color: var(--text-muted); font-size: 0.95rem;">{step['description']}</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="step-header" style="margin-bottom: 1.5rem;">'
+            f'<h2 style="margin-bottom: 0.25rem;">{step["title"]}</h2>'
+            f'<p style="color: var(--text-muted); font-size: 0.95rem;">{step["description"]}</p>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
 
 def render_progress_bar(progress_percent: float, message: str = ""):
@@ -80,17 +82,18 @@ def render_progress_bar(progress_percent: float, message: str = ""):
     """
     progress_value = progress_percent / 100
 
-    st.markdown(f"""
-    <div class="progress-wrapper" style="margin: 1rem 0;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-            <span style="color: var(--text-secondary); font-size: 0.9rem;">{message}</span>
-            <span style="color: var(--accent-primary); font-weight: 600;">{progress_percent:.1f}%</span>
-        </div>
-        <div class="progress-animated" style="height: 8px; background: var(--bg-secondary); border-radius: 10px; overflow: hidden;">
-            <div style="width: {progress_percent}%; height: 100%; background: var(--gradient-primary); border-radius: 10px; transition: width 0.3s ease;"></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="progress-wrapper" style="margin: 1rem 0;">'
+        f'<div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">'
+        f'<span style="color: var(--text-secondary); font-size: 0.9rem;">{html_escape(message)}</span>'
+        f'<span style="color: var(--accent-primary); font-weight: 600;">{progress_percent:.1f}%</span>'
+        f'</div>'
+        f'<div class="progress-animated" style="height: 8px; background: var(--bg-secondary); border-radius: 10px; overflow: hidden;">'
+        f'<div style="width: {progress_percent}%; height: 100%; background: var(--gradient-primary); border-radius: 10px; transition: width 0.3s ease;"></div>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
 
 def render_navigation_buttons(current_step: int, can_proceed: bool = True,

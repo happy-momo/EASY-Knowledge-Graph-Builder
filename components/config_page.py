@@ -20,8 +20,9 @@ from config.app_config import DEFAULT_CONFIG, HELP_TEXTS
 def render_config_section() -> Dict:
     """
     渲染配置界面（专业版）
+    如果首页快速连接已配置，则预填这些值
     """
-    st.markdown('<h3 style="color: #000000; margin-bottom: 1rem;">配置设置</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 style="color: var(--text-primary); margin-bottom: 1rem;">配置设置</h3>', unsafe_allow_html=True)
 
     llm_config = render_llm_config_v2()
     neo4j_config = render_neo4j_config()
@@ -38,7 +39,7 @@ def render_config_section() -> Dict:
 
 def render_llm_config_v2() -> Dict:
     """渲染标准化LLM配置（专业版）"""
-    st.markdown('<h4 style="color: #000000; margin-bottom: 0.5rem;">LLM模型配置</h4>', unsafe_allow_html=True)
+    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">LLM模型配置</h4>', unsafe_allow_html=True)
 
     config_mode = st.radio(
         "配置方式",
@@ -55,31 +56,37 @@ def render_llm_config_v2() -> Dict:
 
 
 def render_preset_config() -> Dict:
-    """渲染预设配置选择（专业版）"""
+    """渲染预设配置选择（专业版）- 从首页快速连接预填"""
     presets = get_preset_configs()
     preset_keys = list(presets.keys())
     preset_names = [presets[k]['name'] for k in preset_keys]
 
+    # 从首页快速连接预选模型
+    quick_llm = st.session_state.get('quick_llm_config', {})
+    default_idx = 0
+    if quick_llm:
+        quick_model = quick_llm.get('model_name', '')
+        for i, k in enumerate(preset_keys):
+            if presets[k].get('model_name') == quick_model:
+                default_idx = i
+                break
+
     selected_name = st.selectbox(
         "选择模型",
         options=preset_names,
-        index=0,
+        index=default_idx,
         help="选择预设的LLM模型配置"
     )
 
     selected_key = preset_keys[preset_names.index(selected_name)]
     preset = presets[selected_key]
 
-    preset_html = f"""
-    <div class="card" style="padding: 1rem; margin: 0.75rem 0;">
-        <div style="color: #000000; font-size: 0.9rem;">
-            {preset['description']}
-        </div>
-        <div style="color: #000000; font-size: 0.8rem; margin-top: 0.5rem;">
-            提供商: {preset['provider']} | 模型: {preset['model_name']}
-        </div>
-    </div>
-    """.strip()
+    preset_html = (
+        f'<div class="card" style="padding: 1rem; margin: 0.75rem 0;">'
+        f'<div style="color: var(--text-primary); font-size: 0.9rem;">{preset["description"]}</div>'
+        f'<div style="color: var(--text-primary); font-size: 0.8rem; margin-top: 0.5rem;">提供商: {preset["provider"]} | 模型: {preset["model_name"]}</div>'
+        f'</div>'
+    )
     st.markdown(preset_html, unsafe_allow_html=True)
 
     api_key = render_api_key_input(preset['provider'])
@@ -94,7 +101,7 @@ def render_preset_config() -> Dict:
 
 def render_custom_config() -> Dict:
     """渲染自定义配置（专业版）"""
-    st.markdown('<p style="color: #000000; font-weight: 600; margin: 0.5rem 0;">自定义API配置</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color: var(--text-primary); font-weight: 600; margin: 0.5rem 0;">自定义API配置</p>', unsafe_allow_html=True)
 
     api_endpoint = st.text_input(
         "API端点",
@@ -191,8 +198,14 @@ def render_api_key_input(provider: str) -> str:
 
 
 def render_neo4j_config() -> Dict:
-    """渲染Neo4j配置（专业版）"""
-    st.markdown('<h4 style="color: #000000; margin-bottom: 0.5rem;">Neo4j数据库配置</h4>', unsafe_allow_html=True)
+    """渲染Neo4j配置（专业版）- 从首页快速连接预填"""
+    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">Neo4j数据库配置</h4>', unsafe_allow_html=True)
+
+    # 从首页快速连接预填
+    quick_cfg = st.session_state.get('quick_neo4j_config', {})
+    default_uri = quick_cfg.get('uri', DEFAULT_CONFIG['neo4j_uri'])
+    default_user = quick_cfg.get('user', DEFAULT_CONFIG['neo4j_user'])
+    default_pwd = quick_cfg.get('password', '')
 
     st.info("默认配置：URI `bolt://localhost:7687`，用户名 `neo4j`。大多数情况下只需设置密码。")
 
@@ -203,21 +216,22 @@ def render_neo4j_config() -> Dict:
         with col1:
             neo4j_uri = st.text_input(
                 "URI",
-                value=DEFAULT_CONFIG['neo4j_uri'],
+                value=default_uri,
                 help=HELP_TEXTS.get("neo4j_uri", "")
             )
         with col2:
             neo4j_user = st.text_input(
                 "用户名",
-                value=DEFAULT_CONFIG['neo4j_user']
+                value=default_user
             )
     else:
-        neo4j_uri = DEFAULT_CONFIG['neo4j_uri']
-        neo4j_user = DEFAULT_CONFIG['neo4j_user']
+        neo4j_uri = default_uri
+        neo4j_user = default_user
 
     neo4j_password = st.text_input(
         "密码",
         type="password",
+        value=default_pwd,
         placeholder="输入Neo4j密码",
         help=HELP_TEXTS.get("neo4j_password", "")
     )
@@ -244,7 +258,7 @@ def render_neo4j_config() -> Dict:
 
 def render_review_mode_config() -> str:
     """渲染审核模式配置（专业版）"""
-    st.markdown('<h4 style="color: #000000; margin-bottom: 0.5rem;">审核设置</h4>', unsafe_allow_html=True)
+    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">审核设置</h4>', unsafe_allow_html=True)
 
     review_mode = st.radio(
         "审核模式",
@@ -291,40 +305,23 @@ def validate_config(config: Dict) -> Tuple[bool, List[str]]:
 
 def render_config_summary(config: Dict):
     """渲染配置摘要（专业版）"""
-    st.markdown('<h3 style="color: #000000; margin-bottom: 0.5rem;">配置摘要</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">配置摘要</h3>', unsafe_allow_html=True)
 
     llm = config.get('llm', {})
+    model_name = llm.get('model_name', '未设置')
+    provider = llm.get('provider', '未设置')
+    api_key_display = (llm.get('api_key', '未设置')[:8] + '...') if llm.get('api_key') else '未设置'
+    neo4j_uri = config.get('neo4j', {}).get('uri', '未设置')
+    review_mode = config.get('review_mode', '未设置')
 
-    # 使用 info-panel 替代 terminal
-    summary_html = """
-    <div class="info-panel">
-        <div class="info-panel-row">
-            <span class="info-panel-label">LLM Model</span>
-            <span class="info-panel-value">{}</span>
-        </div>
-        <div class="info-panel-row">
-            <span class="info-panel-label">Provider</span>
-            <span class="info-panel-value">{}</span>
-        </div>
-        <div class="info-panel-row">
-            <span class="info-panel-label">API Key</span>
-            <span class="info-panel-value">{}</span>
-        </div>
-        <div class="info-panel-row">
-            <span class="info-panel-label">Neo4j URI</span>
-            <span class="info-panel-value">{}</span>
-        </div>
-        <div class="info-panel-row">
-            <span class="info-panel-label">Review Mode</span>
-            <span class="info-panel-value">{}</span>
-        </div>
-    </div>
-    """.format(
-        llm.get('model_name', '未设置'),
-        llm.get('provider', '未设置'),
-        (llm.get('api_key', '未设置')[:8] + '...') if llm.get('api_key') else '未设置',
-        config.get('neo4j', {}).get('uri', '未设置'),
-        config.get('review_mode', '未设置')
+    summary_html = (
+        '<div class="info-panel">'
+        f'<div class="info-panel-row"><span class="info-panel-label">LLM Model</span><span class="info-panel-value">{model_name}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">Provider</span><span class="info-panel-value">{provider}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">API Key</span><span class="info-panel-value">{api_key_display}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">Neo4j URI</span><span class="info-panel-value">{neo4j_uri}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">Review Mode</span><span class="info-panel-value">{review_mode}</span></div>'
+        '</div>'
     )
 
     st.markdown(summary_html, unsafe_allow_html=True)

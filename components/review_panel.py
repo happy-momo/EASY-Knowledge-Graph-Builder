@@ -6,6 +6,7 @@ import streamlit as st
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, field
 import copy
+from html import escape as html_escape
 
 from utils.llm_extractor import KnowledgeGraphTriple
 
@@ -87,11 +88,10 @@ def render_review_panel(review_state: TripleReviewState) -> Tuple[str, Optional[
             return ('prev_page', None)
 
     with col2:
-        st.markdown(f"""
-        <div style="text-align: center; color: var(--text-secondary);">
-            第 {review_state.current_page + 1}/{total_pages} 页
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="text-align: center; color: var(--text-secondary);">第 {review_state.current_page + 1}/{total_pages} 页</div>',
+            unsafe_allow_html=True
+        )
 
     with col3:
         if st.button("下一页", disabled=review_state.current_page >= total_pages - 1):
@@ -139,11 +139,10 @@ def render_review_statistics(review_state: TripleReviewState):
         progress = reviewed_count / len(review_state.triples)
 
         st.progress(progress)
-        st.markdown(f"""
-        <div style="text-align: center; color: var(--text-muted);">
-            审核进度: {progress*100:.1f}% ({reviewed_count}/{len(review_state.triples)})
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="text-align: center; color: var(--text-muted);">审核进度: {progress*100:.1f}% ({reviewed_count}/{len(review_state.triples)})</div>',
+            unsafe_allow_html=True
+        )
 
 
 def render_triple_card(idx: int, triple: Dict, edited_triple: Optional[Dict],
@@ -166,32 +165,37 @@ def render_triple_card(idx: int, triple: Dict, edited_triple: Optional[Dict],
     }
     status_text, status_type = status_styles.get(status, ('⚪ 未知', 'secondary'))
 
-    # 卡片HTML
-    card_html = f"""
-    <div class="triple-card" style="--index: {idx % 10}; margin-bottom: 1rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-            <span style="color: var(--text-muted);">三元组 #{idx + 1}</span>
-            <span class="file-status {status_type}">{status_text}</span>
-        </div>
-        <div class="triple-content">
-            <div class="entity">
-                <div class="entity-name">{display_triple.get('head', 'N/A')}</div>
-                <div class="entity-type">{display_triple.get('head_type', 'N/A')}</div>
-                <div class="entity-properties">
-                    {format_properties(display_triple.get('head_properties', {}))}
-                </div>
-            </div>
-            <div class="relation">{display_triple.get('relation', 'N/A')}</div>
-            <div class="entity">
-                <div class="entity-name">{display_triple.get('tail', 'N/A')}</div>
-                <div class="entity-type">{display_triple.get('tail_type', 'N/A')}</div>
-                <div class="entity-properties">
-                    {format_properties(display_triple.get('tail_properties', {}))}
-                </div>
-            </div>
-        </div>
-    </div>
-    """
+    # 对三元组值进行HTML转义，防止注入
+    head_name = html_escape(str(display_triple.get('head', 'N/A')))
+    head_type = html_escape(str(display_triple.get('head_type', 'N/A')))
+    head_props_html = html_escape(format_properties(display_triple.get('head_properties', {})))
+    relation = html_escape(str(display_triple.get('relation', 'N/A')))
+    tail_name = html_escape(str(display_triple.get('tail', 'N/A')))
+    tail_type = html_escape(str(display_triple.get('tail_type', 'N/A')))
+    tail_props_html = html_escape(format_properties(display_triple.get('tail_properties', {})))
+
+    # 卡片HTML - 单行避免markdown解析器干扰
+    card_html = (
+        f'<div class="triple-card" style="--index: {idx % 10}; margin-bottom: 1rem;">'
+        f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">'
+        f'<span style="color: var(--text-muted);">三元组 #{idx + 1}</span>'
+        f'<span class="file-status {status_type}">{status_text}</span>'
+        f'</div>'
+        f'<div class="triple-content">'
+        f'<div class="entity">'
+        f'<div class="entity-name">{head_name}</div>'
+        f'<div class="entity-type">{head_type}</div>'
+        f'<div class="entity-properties">{head_props_html}</div>'
+        f'</div>'
+        f'<div class="relation">{relation}</div>'
+        f'<div class="entity">'
+        f'<div class="entity-name">{tail_name}</div>'
+        f'<div class="entity-type">{tail_type}</div>'
+        f'<div class="entity-properties">{tail_props_html}</div>'
+        f'</div>'
+        f'</div>'
+        f'</div>'
+    )
 
     st.markdown(card_html, unsafe_allow_html=True)
 
@@ -325,7 +329,7 @@ def format_properties(props: Dict) -> str:
 
     items = []
     for k, v in props.items():
-        items.append(f"{k}: {v}")
+        items.append(f"{html_escape(str(k))}: {html_escape(str(v))}")
 
     return ", ".join(items[:3]) + ("..." if len(items) > 3 else "")
 
