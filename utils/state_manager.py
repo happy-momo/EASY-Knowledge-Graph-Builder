@@ -29,8 +29,10 @@ class StateManager:
 
     def _init_storage(self):
         """初始化存储目录"""
-        self.data_dir = Path(".data/session")
-        self.upload_dir = Path(".data/uploads")
+        # 获取项目根目录
+        project_root = Path(__file__).parent.parent
+        self.data_dir = project_root / ".data" / "session"
+        self.upload_dir = project_root / ".data" / "uploads"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
