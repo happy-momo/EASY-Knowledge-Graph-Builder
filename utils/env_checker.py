@@ -252,16 +252,16 @@ def format_status_message(status) -> str:
     """
     if isinstance(status, Neo4jStatus):
         if status.status == ConnectionStatus.CONNECTED:
-            return f"✅ Neo4j 已连接 ({status.version})"
+            return f"Neo4j 已连接 ({status.version})"
         elif status.status == ConnectionStatus.DISCONNECTED:
-            return f"⚪ Neo4j 未连接 - {status.message}"
+            return f"Neo4j 未连接 - {status.message}"
         else:
-            return f"❌ Neo4j 错误 - {status.message}"
+            return f"Neo4j 错误 - {status.message}"
 
     elif isinstance(status, APIKeyStatus):
         if status.configured:
-            return f"✅ {status.provider.upper()} API Key 已配置 ({status.key_prefix})"
+            return f"{status.provider.upper()} API Key 已配置 ({status.key_prefix})"
         else:
-            return f"⚪ {status.provider.upper()} API Key 未配置"
+            return f"{status.provider.upper()} API Key 未配置"
 
     return "未知状态"
