@@ -1,13 +1,19 @@
 """
-配置页面组件
+配置页面组件（重构版）
+
+使用标准化LLM配置，支持任意厂商模型。
 """
 
 import streamlit as st
 import os
 from typing import Dict, Tuple, List
 
-from config.app_config import LLM_OPTIONS, DEFAULT_CONFIG, HELP_TEXTS
-from utils.env_checker import check_api_key
+from utils.llm_config import (
+    LLMConfig, get_preset_configs, create_llm_config_from_preset,
+    validate_llm_config, get_api_key_from_env, test_llm_connection
+)
+from utils.neo4j_manager import Neo4jManager
+from config.app_config import DEFAULT_CONFIG, HELP_TEXTS
 
 
 def render_config_section() -> Dict:
@@ -20,7 +26,7 @@ def render_config_section() -> Dict:
     st.markdown("### 配置设置")
 
     # LLM配置
-    llm_config = render_llm_config()
+    llm_config = render_llm_config_v2()
 
     # Neo4j配置
     neo4j_config = render_neo4j_config()
@@ -38,61 +44,172 @@ def render_config_section() -> Dict:
     return config
 
 
-def render_llm_config() -> Dict:
-    """渲染LLM配置"""
+def render_llm_config_v2() -> Dict:
+    """渲染标准化LLM配置"""
 
     st.markdown("#### 🧠 LLM模型配置")
 
-    # 模型选择
-    model_options = [opt['name'] for opt in LLM_OPTIONS]
-    default_index = 0  # GLM-4-Flash
+    # 选择配置方式
+    config_mode = st.radio(
+        "配置方式",
+        options=["preset", "custom"],
+        format_func=lambda x: {
+            "preset": "📋 选择预设配置",
+            "custom": "⚙️ 自定义配置"
+        }[x],
+        horizontal=True,
+        key="llm_config_mode"
+    )
+
+    if config_mode == "preset":
+        return render_preset_config()
+    else:
+        return render_custom_config()
+
+
+def render_preset_config() -> Dict:
+    """渲染预设配置选择"""
+
+    presets = get_preset_configs()
+
+    # 显示预设卡片
+    preset_keys = list(presets.keys())
+    preset_names = [presets[k]['name'] for k in preset_keys]
 
     selected_name = st.selectbox(
         "选择模型",
-        options=model_options,
-        index=default_index,
-        help=HELP_TEXTS.get("llm_model", "")
+        options=preset_names,
+        index=0,
+        help="选择预设的LLM模型配置"
     )
 
-    # 找到对应的模型配置
-    selected_llm = None
-    for opt in LLM_OPTIONS:
-        if opt['name'] == selected_name:
-            selected_llm = opt
-            break
+    # 获取选中的预设
+    selected_key = preset_keys[preset_names.index(selected_name)]
+    preset = presets[selected_key]
+
+    # 显示预设详情
+    st.markdown(f"""
+    <div class="card" style="padding: var(--space-4);">
+        <div style="color: var(--text-secondary); font-size: var(--text-sm);">
+            {preset['description']}
+        </div>
+        <div style="color: var(--text-tertiary); font-size: var(--text-xs); margin-top: var(--space-2);">
+            提供商: {preset['provider']} | 模型: {preset['model_name']}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # API Key输入
-    st.markdown(f"**{selected_llm['api_key_label']}**")
+    api_key = render_api_key_input(preset['provider'])
 
-    # 尝试从环境变量读取
-    env_api_key = os.environ.get(selected_llm['api_env_key'], "")
+    # 创建配置
+    try:
+        llm_config = create_llm_config_from_preset(selected_key, api_key)
+        return llm_config.to_dict()
+    except ValueError as e:
+        st.error(str(e))
+        return {}
 
-    # 显示环境变量状态
-    api_key_status = check_api_key(selected_llm['provider'])
-    if api_key_status.configured:
-        st.success(f"✅ 已从环境变量检测到API Key ({api_key_status.key_prefix})")
 
-    # API Key输入框
-    api_key = st.text_input(
-        "API Key",
-        value=env_api_key,
-        type="password",
-        placeholder="输入API Key",
-        help=HELP_TEXTS.get("api_key", "")
+def render_custom_config() -> Dict:
+    """渲染自定义配置"""
+
+    st.markdown("**自定义API配置**")
+
+    # API端点
+    api_endpoint = st.text_input(
+        "API端点",
+        placeholder="https://api.example.com/v1/",
+        help="输入兼容OpenAI API的端点地址"
     )
 
-    # 如果没有输入，使用环境变量的值
-    if not api_key and env_api_key:
-        api_key = env_api_key
+    # API Key
+    api_key = st.text_input(
+        "API Key",
+        type="password",
+        placeholder="输入API Key",
+        help="输入API Key"
+    )
 
-    st.markdown("---")
+    # 模型名称
+    model_name = st.text_input(
+        "模型名称",
+        placeholder="gpt-4 或 glm-4",
+        help="输入模型名称"
+    )
 
-    return {
-        "model_name": selected_llm['model_name'],
-        "provider": selected_llm['provider'],
-        "api_key": api_key,
-        "api_key_label": selected_llm['api_key_label']
-    }
+    # 高级选项
+    with st.expander("高级选项"):
+        col1, col2 = st.columns(2)
+        with col1:
+            temperature = st.slider(
+                "Temperature",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.1,
+                step=0.1,
+                help="控制输出的随机性"
+            )
+        with col2:
+            max_tokens = st.number_input(
+                "最大Token数",
+                min_value=256,
+                max_value=4096,
+                value=2048,
+                step=256
+            )
+
+    # 测试连接
+    if api_endpoint and api_key and model_name:
+        if st.button("测试连接", key="test_llm"):
+            with st.spinner("测试中..."):
+                config = LLMConfig(
+                    api_endpoint=api_endpoint,
+                    api_key=api_key,
+                    model_name=model_name
+                )
+                success, message = test_llm_connection(config)
+                if success:
+                    st.success(f"✅ {message}")
+                else:
+                    st.error(f"❌ {message}")
+
+    # 创建配置
+    if api_endpoint and api_key and model_name:
+        try:
+            llm_config = LLMConfig(
+                api_endpoint=api_endpoint,
+                api_key=api_key,
+                model_name=model_name,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            return llm_config.to_dict()
+        except ValueError as e:
+            st.error(str(e))
+
+    return {}
+
+
+def render_api_key_input(provider: str) -> str:
+    """渲染API Key输入"""
+
+    # 尝试从环境变量获取
+    env_key = get_api_key_from_env(provider)
+
+    if env_key:
+        st.success(f"✅ 已从环境变量检测到API Key ({env_key[:8]}...)")
+        return env_key
+
+    # 手动输入
+    api_key = st.text_input(
+        "API Key",
+        type="password",
+        placeholder=f"输入{provider.upper()} API Key",
+        help="支持从环境变量自动读取"
+    )
+
+    return api_key
 
 
 def render_neo4j_config() -> Dict:
@@ -135,13 +252,14 @@ def render_neo4j_config() -> Dict:
     # 连接测试
     if neo4j_password:
         if st.button("测试连接", key="test_neo4j"):
-            from utils.env_checker import check_neo4j_connection
-            status = check_neo4j_connection(neo4j_uri, neo4j_user, neo4j_password)
-
-            if status.status.value == "connected":
-                st.success(f"✅ 连接成功 (Neo4j {status.version})")
-            else:
-                st.error(f"❌ {status.message}")
+            with st.spinner("测试中..."):
+                manager = Neo4jManager(neo4j_uri, neo4j_user, neo4j_password)
+                success, message = manager.test_connection()
+                if success:
+                    st.success(f"✅ {message}")
+                else:
+                    st.error(f"❌ {message}")
+                manager.close()
 
     st.markdown("---")
 
@@ -193,9 +311,14 @@ def validate_config(config: Dict) -> Tuple[bool, List[str]]:
     """
     missing = []
 
-    # 检查API Key
-    if not config.get('llm', {}).get('api_key'):
-        missing.append("LLM API Key")
+    # 检查LLM配置
+    llm = config.get('llm', {})
+    if not llm.get('api_endpoint'):
+        missing.append("API端点")
+    if not llm.get('api_key'):
+        missing.append("API Key")
+    if not llm.get('model_name'):
+        missing.append("模型名称")
 
     # 检查Neo4j密码
     if not config.get('neo4j', {}).get('password'):
@@ -209,19 +332,22 @@ def render_config_summary(config: Dict):
 
     st.markdown("### 配置摘要")
 
+    llm = config.get('llm', {})
+
     summary_html = f"""
-    <div class="terminal-container">
+    <div class="terminal">
         <div class="terminal-header">
             <div class="terminal-dot close"></div>
             <div class="terminal-dot minimize"></div>
             <div class="terminal-dot maximize"></div>
             <div class="terminal-title">Configuration</div>
         </div>
-        <div class="terminal">
-            <span class="info">LLM Model:</span> <span class="result">{config['llm']['model_name']}</span><br>
-            <span class="info">API Key:</span> <span class="result">{config['llm']['api_key'][:8] + '...' if config['llm']['api_key'] else '未设置'}</span><br>
-            <span class="info">Neo4j URI:</span> <span class="result">{config['neo4j']['uri']}</span><br>
-            <span class="info">Review Mode:</span> <span class="result">{config['review_mode']}</span><br>
+        <div class="terminal-body">
+            <span class="info">LLM Model:</span> <span class="result">{llm.get('model_name', '未设置')}</span><br>
+            <span class="info">Provider:</span> <span class="result">{llm.get('provider', '未设置')}</span><br>
+            <span class="info">API Key:</span> <span class="result">{llm.get('api_key', '未设置')[:8] + '...' if llm.get('api_key') else '未设置'}</span><br>
+            <span class="info">Neo4j URI:</span> <span class="result">{config.get('neo4j', {}).get('uri', '未设置')}</span><br>
+            <span class="info">Review Mode:</span> <span class="result">{config.get('review_mode', '未设置')}</span><br>
         </div>
     </div>
     """
@@ -231,25 +357,9 @@ def render_config_summary(config: Dict):
 
 def save_config_to_state(config: Dict):
     """保存配置到session_state"""
-    st.session_state['llm_model'] = config['llm']['model_name']
-    st.session_state['llm_api_key'] = config['llm']['api_key']
-    st.session_state['neo4j_uri'] = config['neo4j']['uri']
-    st.session_state['neo4j_user'] = config['neo4j']['user']
-    st.session_state['neo4j_password'] = config['neo4j']['password']
-    st.session_state['review_mode'] = config['review_mode']
+    st.session_state['config'] = config
 
 
 def load_config_from_state() -> Dict:
     """从session_state加载配置"""
-    return {
-        "llm": {
-            "model_name": st.session_state.get('llm_model', ''),
-            "api_key": st.session_state.get('llm_api_key', '')
-        },
-        "neo4j": {
-            "uri": st.session_state.get('neo4j_uri', DEFAULT_CONFIG['neo4j_uri']),
-            "user": st.session_state.get('neo4j_user', DEFAULT_CONFIG['neo4j_user']),
-            "password": st.session_state.get('neo4j_password', '')
-        },
-        "review_mode": st.session_state.get('review_mode', 'auto')
-    }
+    return st.session_state.get('config', {})

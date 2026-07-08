@@ -1,16 +1,7 @@
 """
-KG AI Builder - 主应用
+KG AI Builder - 主应用（重构版）
 
-重构后的7步骤向导流程：
-1. 欢迎页 - 系统介绍和环境检测
-2. Schema配置 - 选择模板或上传YAML
-3. 文件导入 - 单文件或文件夹导入，支持移除
-4. 配置 - LLM、Neo4j、审核模式设置
-5. 抽取处理 - 实时进度显示
-6. 审核 - 人工审核或自动跳过
-7. 完成 - 统计摘要
-
-状态持久化：刷新后进度继续推进，配置不丢失
+产品化设计，使用新的视觉系统和标准化LLM配置。
 """
 
 import streamlit as st
@@ -18,6 +9,7 @@ import yaml
 import json
 import time
 from typing import Dict, List, Tuple, Optional
+from pathlib import Path
 
 # 页面配置
 from config.app_config import PAGE_CONFIG, STEPS, DEFAULT_CONFIG
@@ -27,6 +19,16 @@ st.set_page_config(**PAGE_CONFIG)
 with open("styles/main.css", "r", encoding="utf-8") as f:
     custom_css = f.read()
 st.markdown(f"<style>{custom_css}</style>", unsafe_allow_html=True)
+
+# 导入新的核心模块
+from utils.llm_config import LLMConfig, get_preset_configs, create_llm_config_from_preset
+from utils.extractor import extract_triples, KnowledgeGraphTriple, ExtractionError
+from utils.cypher_generator import generate_cypher_safe
+from utils.neo4j_manager import Neo4jManager
+from utils.state_manager import state_manager
+from utils.progress_tracker import progress_tracker
+from utils.file_manager import file_manager
+from utils.env_checker import check_neo4j_connection
 
 # 导入组件
 from components import (
@@ -42,7 +44,6 @@ from components import (
     validate_schema,
     render_file_import_section,
     has_files_loaded,
-    get_total_chunks,
     get_all_chunks_for_processing,
     render_config_section,
     validate_config,
@@ -62,41 +63,25 @@ from components import (
     render_loading_animation
 )
 
-# 导入工具
-from utils.state_manager import state_manager
-from utils.progress_tracker import progress_tracker
-from utils.file_manager import file_manager
-from utils.env_checker import check_neo4j_connection
-from utils.llm_extractor import process_text_with_llm, generate_cypher
-from utils.graph_db import Neo4jHandler
-
 
 # ==================== 状态初始化 ====================
 def init_session_state():
     """初始化session_state"""
-    if 'current_step' not in st.session_state:
-        st.session_state.current_step = 0
+    defaults = {
+        'current_step': 0,
+        'completed_steps': [],
+        'schema_config': None,
+        'schema_yaml': "",
+        'config': None,
+        'is_processing': False,
+        'processing_result': None,
+        'review_state': None,
+        'llm_config': None
+    }
 
-    if 'completed_steps' not in st.session_state:
-        st.session_state.completed_steps = []
-
-    if 'schema_config' not in st.session_state:
-        st.session_state.schema_config = None
-
-    if 'schema_yaml' not in st.session_state:
-        st.session_state.schema_yaml = ""
-
-    if 'config' not in st.session_state:
-        st.session_state.config = None
-
-    if 'is_processing' not in st.session_state:
-        st.session_state.is_processing = False
-
-    if 'processing_result' not in st.session_state:
-        st.session_state.processing_result = None
-
-    if 'review_state' not in st.session_state:
-        st.session_state.review_state = None
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 
 def load_persisted_state():
@@ -106,9 +91,14 @@ def load_persisted_state():
     if saved_config and not st.session_state.config:
         st.session_state.config = saved_config
 
+    # 加载LLM配置
+    saved_llm = state_manager.load('llm_config')
+    if saved_llm:
+        st.session_state.llm_config = LLMConfig.from_dict(saved_llm)
+
     # 检查是否有可恢复的进度
     if progress_tracker.can_resume():
-        st.session_state.current_step = 4  # 回到处理步骤
+        st.session_state.current_step = 4
         st.session_state.is_processing = True
 
 
@@ -117,11 +107,13 @@ def save_persisted_state():
     if st.session_state.config:
         state_manager.save('config', st.session_state.config)
 
+    if st.session_state.llm_config:
+        state_manager.save('llm_config', st.session_state.llm_config.to_dict())
+
 
 # ==================== 主应用 ====================
 def main():
     """主应用流程"""
-
     # 初始化
     init_session_state()
     load_persisted_state()
@@ -135,32 +127,23 @@ def main():
     # 根据当前步骤渲染页面
     current_step = st.session_state.current_step
 
-    if current_step == 0:
-        render_welcome_step()
+    step_functions = [
+        render_welcome_step,
+        render_schema_step,
+        render_file_step,
+        render_config_step,
+        render_process_step,
+        render_review_step,
+        render_complete_step
+    ]
 
-    elif current_step == 1:
-        render_schema_step()
-
-    elif current_step == 2:
-        render_file_step()
-
-    elif current_step == 3:
-        render_config_step()
-
-    elif current_step == 4:
-        render_process_step()
-
-    elif current_step == 5:
-        render_review_step()
-
-    elif current_step == 6:
-        render_complete_step()
+    if 0 <= current_step < len(step_functions):
+        step_functions[current_step]()
 
 
 # ==================== 步骤实现 ====================
 def render_welcome_step():
     """步骤0: 欢迎页"""
-
     render_step_title(0)
 
     # 渲染欢迎页
@@ -178,7 +161,6 @@ def render_welcome_step():
 
 def render_schema_step():
     """步骤1: Schema配置"""
-
     render_step_title(1)
 
     # 渲染Schema选择
@@ -212,7 +194,6 @@ def render_schema_step():
 
 def render_file_step():
     """步骤2: 文件导入"""
-
     render_step_title(2)
 
     # 渲染文件导入
@@ -242,7 +223,6 @@ def render_file_step():
 
 def render_config_step():
     """步骤3: 配置"""
-
     render_step_title(3)
 
     # 渲染配置界面
@@ -278,7 +258,6 @@ def render_config_step():
 
 def render_process_step():
     """步骤4: 抽取处理"""
-
     render_step_title(4)
 
     # 检查是否可以恢复处理
@@ -313,10 +292,8 @@ def render_process_step():
 
             # 根据审核模式决定下一步
             if st.session_state.config.get('review_mode') == 'manual':
-                # 进入审核步骤
                 st.session_state.current_step = 5
             else:
-                # 自动审核，直接完成
                 st.session_state.completed_steps.append(5)
                 st.session_state.current_step = 6
 
@@ -330,7 +307,6 @@ def render_process_step():
 
 def start_extraction_process(resume: bool = False):
     """开始抽取处理"""
-
     # 获取所有分块
     chunks = get_all_chunks_for_processing()
 
@@ -350,13 +326,23 @@ def start_extraction_process(resume: bool = False):
 
     # 获取配置
     config = st.session_state.config
-    api_key = config['llm']['api_key']
-    model_name = config['llm']['model_name']
-    neo4j_config = config['neo4j']
+    llm_config_dict = config['llm']
 
-    # 如果是自动审核模式，初始化Neo4j连接
+    # 创建LLM配置
+    llm_config = LLMConfig(
+        api_endpoint=llm_config_dict['api_endpoint'],
+        api_key=llm_config_dict['api_key'],
+        model_name=llm_config_dict['model_name'],
+        provider=llm_config_dict.get('provider', 'custom'),
+        temperature=llm_config_dict.get('temperature', 0.1),
+        max_tokens=llm_config_dict.get('max_tokens', 2048)
+    )
+
+    # 初始化Neo4j连接（自动审核模式）
+    neo4j_manager = None
     if config['review_mode'] == 'auto':
-        db_handler = Neo4jHandler(
+        neo4j_config = config['neo4j']
+        neo4j_manager = Neo4jManager(
             neo4j_config['uri'],
             neo4j_config['user'],
             neo4j_config['password']
@@ -364,8 +350,6 @@ def start_extraction_process(resume: bool = False):
 
     try:
         # 处理每个分块
-        all_triples = []
-
         pending_chunks = chunks if not resume else [
             c for c in chunks
             if c[2] in progress_tracker.get_pending_chunks()
@@ -376,11 +360,10 @@ def start_extraction_process(resume: bool = False):
             progress_tracker.update_chunk_start(chunk_index, file_name, file_id)
 
             # 调用LLM抽取
-            triples = process_text_with_llm(
+            triples = extract_triples(
                 chunk_content,
                 st.session_state.schema_yaml,
-                api_key,
-                model_name
+                llm_config
             )
 
             if triples:
@@ -405,12 +388,10 @@ def start_extraction_process(resume: bool = False):
                     len(triples)
                 )
 
-                all_triples.extend(triples)
-
                 # 自动审核模式：直接存入数据库
-                if config['review_mode'] == 'auto':
-                    cypher_queries = generate_cypher(triples)
-                    db_handler.execute_cypher(cypher_queries)
+                if config['review_mode'] == 'auto' and neo4j_manager:
+                    cypher_queries = generate_cypher_safe(triples)
+                    neo4j_manager.execute_cypher(cypher_queries)
 
             else:
                 progress_tracker.update_chunk_complete(chunk_index, [], 0)
@@ -421,20 +402,25 @@ def start_extraction_process(resume: bool = False):
         # 完成处理
         progress_tracker.complete()
 
-        if config['review_mode'] == 'auto':
-            db_handler.close()
+    except ExtractionError as e:
+        progress_tracker.error(str(e))
+        st.error(f"抽取失败: {e}")
+        st.session_state.is_processing = False
 
     except Exception as e:
         progress_tracker.error(str(e))
         st.error(f"处理出错: {e}")
         st.session_state.is_processing = False
 
+    finally:
+        if neo4j_manager:
+            neo4j_manager.close()
+
     st.rerun()
 
 
 def render_review_step():
     """步骤5: 人工审核"""
-
     render_step_title(5)
 
     # 获取所有三元组
@@ -490,7 +476,6 @@ def show_edit_modal(idx: int, triple: Dict) -> Optional[Dict]:
 
 def save_reviewed_triples(review_state: TripleReviewState):
     """保存审核后的三元组到数据库"""
-
     triples_to_save = review_state.get_triples_to_save()
 
     if not triples_to_save:
@@ -500,35 +485,33 @@ def save_reviewed_triples(review_state: TripleReviewState):
     config = st.session_state.config
     neo4j_config = config['neo4j']
 
-    # 连接数据库
-    db_handler = Neo4jHandler(
+    # 使用Neo4jManager
+    with Neo4jManager(
         neo4j_config['uri'],
         neo4j_config['user'],
         neo4j_config['password']
-    )
+    ) as neo4j_manager:
+        # 转换为KnowledgeGraphTriple对象
+        triples_obj = []
+        for t_dict in triples_to_save:
+            triple_obj = KnowledgeGraphTriple(
+                head=t_dict['head'],
+                head_type=t_dict['head_type'],
+                head_properties=t_dict['head_properties'],
+                relation=t_dict['relation'],
+                tail=t_dict['tail'],
+                tail_type=t_dict['tail_type'],
+                tail_properties=t_dict['tail_properties']
+            )
+            triples_obj.append(triple_obj)
 
-    # 转换并保存
-    triples_obj = []
-    for t_dict in triples_to_save:
-        triple_obj = KnowledgeGraphTriple(
-            head=t_dict['head'],
-            head_type=t_dict['head_type'],
-            head_properties=t_dict['head_properties'],
-            relation=t_dict['relation'],
-            tail=t_dict['tail'],
-            tail_type=t_dict['tail_type'],
-            tail_properties=t_dict['tail_properties']
-        )
-        triples_obj.append(triple_obj)
-
-    cypher_queries = generate_cypher(triples_obj)
-    db_handler.execute_cypher(cypher_queries)
-    db_handler.close()
+        # 生成安全的Cypher查询
+        cypher_queries = generate_cypher_safe(triples_obj)
+        neo4j_manager.execute_cypher(cypher_queries)
 
 
 def render_complete_step():
     """步骤6: 完成"""
-
     render_step_title(6)
 
     # 获取统计
@@ -553,6 +536,7 @@ def reset_all_state():
     st.session_state.is_processing = False
     st.session_state.processing_result = None
     st.session_state.review_state = None
+    st.session_state.llm_config = None
 
     progress_tracker.reset()
     file_manager.clear_all()
