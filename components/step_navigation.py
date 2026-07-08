@@ -22,10 +22,7 @@ def render_step_navigation(current_step: int, completed_steps: List[int] = None)
         completed_steps = []
 
     # 构建导航HTML
-    nav_html = """
-    <div class="steps-container">
-        <div class="step-nav">
-    """
+    nav_html = '<div class="steps-container"><div class="step-nav">'
 
     for i, step in enumerate(STEPS):
         # 确定步骤状态
@@ -45,18 +42,13 @@ def render_step_navigation(current_step: int, completed_steps: List[int] = None)
         # 标题状态类
         title_class = "active" if i == current_step else ""
 
-        nav_html += f"""
-            <div class="step-item" data-step="{i}">
-                <div class="step-number {status_class}">{number_display}</div>
-                <div class="step-title {title_class}">{step['title']}</div>
-                <div class="step-description">{step['description']}</div>
-            </div>
-        """
+        nav_html += f'<div class="step-item" data-step="{i}">'
+        nav_html += f'<div class="step-number {status_class}">{number_display}</div>'
+        nav_html += f'<div class="step-title {title_class}">{step["title"]}</div>'
+        nav_html += f'<div class="step-description">{step["description"]}</div>'
+        nav_html += '</div>'
 
-    nav_html += """
-        </div>
-    </div>
-    """
+    nav_html += '</div></div>'
 
     st.markdown(nav_html, unsafe_allow_html=True)
 

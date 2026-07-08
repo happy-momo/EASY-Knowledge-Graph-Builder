@@ -16,59 +16,62 @@ def render_welcome_page():
     api_keys_status = check_all_api_keys()
 
     # 标题区域
-    st.markdown("""
-    <div style="text-align: center; padding: 2rem 0; margin-bottom: 1rem;">
-        <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">KG AI Builder</h1>
-        <p style="color: var(--text-muted); font-size: 1.1rem;">
-            从文本到知识图谱的智能转换
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div style="text-align: center; padding: 2rem 0; margin-bottom: 1rem;">'
+        '    <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">KG AI Builder</h1>'
+        '    <p style="color: var(--text-muted); font-size: 1.1rem;">'
+        '        从文本到知识图谱的智能转换'
+        '    </p>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     # 功能介绍卡片
-    st.markdown("""
-    <div style="display: flex; gap: 1rem; margin-bottom: 2rem;">
-        <div class="card" style="flex: 1; text-align: center; padding: 1.5rem;">
-            <div style="font-size: 2rem; margin-bottom: 0.75rem;">📋</div>
-            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">Schema配置</div>
-            <div style="color: var(--text-muted); font-size: 0.85rem;">定义知识结构</div>
-        </div>
-        <div class="card" style="flex: 1; text-align: center; padding: 1.5rem;">
-            <div style="font-size: 2rem; margin-bottom: 0.75rem;">📄</div>
-            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">文档导入</div>
-            <div style="color: var(--text-muted); font-size: 0.85rem;">上传或批量处理</div>
-        </div>
-        <div class="card" style="flex: 1; text-align: center; padding: 1.5rem;">
-            <div style="font-size: 2rem; margin-bottom: 0.75rem;">⚙️</div>
-            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">智能抽取</div>
-            <div style="color: var(--text-muted); font-size: 0.85rem;">LLM驱动的知识提取</div>
-        </div>
-        <div class="card" style="flex: 1; text-align: center; padding: 1.5rem;">
-            <div style="font-size: 2rem; margin-bottom: 0.75rem;">✅</div>
-            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">审核入库</div>
-            <div style="color: var(--text-muted); font-size: 0.85rem;">确认后存入Neo4j</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div style="display: flex; gap: 1rem; margin-bottom: 2rem;">'
+        '    <div class="card" style="flex: 1; text-align: center; padding: 1.5rem;">'
+        '        <div style="font-size: 2rem; margin-bottom: 0.75rem;">📋</div>'
+        '        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">Schema配置</div>'
+        '        <div style="color: var(--text-muted); font-size: 0.85rem;">定义知识结构</div>'
+        '    </div>'
+        '    <div class="card" style="flex: 1; text-align: center; padding: 1.5rem;">'
+        '        <div style="font-size: 2rem; margin-bottom: 0.75rem;">📄</div>'
+        '        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">文档导入</div>'
+        '        <div style="color: var(--text-muted); font-size: 0.85rem;">上传或批量处理</div>'
+        '    </div>'
+        '    <div class="card" style="flex: 1; text-align: center; padding: 1.5rem;">'
+        '        <div style="font-size: 2rem; margin-bottom: 0.75rem;">⚙️</div>'
+        '        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">智能抽取</div>'
+        '        <div style="color: var(--text-muted); font-size: 0.85rem;">LLM驱动的知识提取</div>'
+        '    </div>'
+        '    <div class="card" style="flex: 1; text-align: center; padding: 1.5rem;">'
+        '        <div style="font-size: 2rem; margin-bottom: 0.75rem;">✅</div>'
+        '        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">审核入库</div>'
+        '        <div style="color: var(--text-muted); font-size: 0.85rem;">确认后存入Neo4j</div>'
+        '    </div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     st.markdown("---")
 
     # 环境状态检测
     st.subheader("🔍 环境状态检测")
 
-    # Neo4j状态（暂不检测连接，只显示提示）
-    st.markdown("""
-    <div class="card" style="padding: 1rem;">
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <div style="font-size: 1.5rem;">⚪</div>
-            <div style="flex: 1;">
-                <div style="font-weight: 500; color: var(--text-primary);">Neo4j 数据库</div>
-                <div style="color: var(--text-muted); font-size: 0.85rem;">连接将在配置步骤中检测</div>
-            </div>
-            <div style="color: var(--text-muted); font-size: 0.85rem;">待检测</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Neo4j状态
+    st.markdown(
+        '<div class="card" style="padding: 1rem;">'
+        '    <div style="display: flex; align-items: center; gap: 1rem;">'
+        '        <div style="font-size: 1.5rem;">⚪</div>'
+        '        <div style="flex: 1;">'
+        '            <div style="font-weight: 500; color: var(--text-primary);">Neo4j 数据库</div>'
+        '            <div style="color: var(--text-muted); font-size: 0.85rem;">连接将在配置步骤中检测</div>'
+        '        </div>'
+        '        <div style="color: var(--text-muted); font-size: 0.85rem;">待检测</div>'
+        '    </div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     # API Key状态
     st.markdown("**API Key 配置状态**")
@@ -79,17 +82,17 @@ def render_welcome_page():
         key_info = f" ({status.key_prefix})" if status.key_prefix else ""
         source_info = f" [{status.source}]" if status.source else ""
 
-        api_key_html += f"""
-        <div class="card" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <div style="font-size: 1.1rem;">{icon}</div>
-                <div style="flex: 1;">
-                    <span style="color: var(--text-primary);">{provider.upper()}</span>
-                    <span style="color: var(--text-muted); font-size: 0.85rem;">{key_info}{source_info}</span>
-                </div>
-            </div>
-        </div>
-        """
+        api_key_html += (
+            '<div class="card" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">'
+            '    <div style="display: flex; align-items: center; gap: 0.75rem;">'
+            f'        <div style="font-size: 1.1rem;">{icon}</div>'
+            '        <div style="flex: 1;">'
+            f'            <span style="color: var(--text-primary);">{provider.upper()}</span>'
+            f'            <span style="color: var(--text-muted); font-size: 0.85rem;">{key_info}{source_info}</span>'
+            '        </div>'
+            '    </div>'
+            '</div>'
+        )
 
     st.markdown(api_key_html, unsafe_allow_html=True)
 
@@ -110,12 +113,13 @@ def render_welcome_page():
             return "start"
 
     # 底部链接
-    st.markdown("""
-    <div style="text-align: center; margin-top: 1rem; color: var(--text-muted);">
-        <span>📚 <a href="#" style="color: var(--accent-primary);">使用帮助</a></span>
-        <span style="margin-left: 2rem;">🐳 <a href="#" style="color: var(--accent-primary);">Docker部署</a></span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div style="text-align: center; margin-top: 1rem; color: var(--text-muted);">'
+        '    <span>📚 <a href="#" style="color: var(--accent-primary);">使用帮助</a></span>'
+        '    <span style="margin-left: 2rem;">🐳 <a href="#" style="color: var(--accent-primary);">Docker部署</a></span>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     return None
 

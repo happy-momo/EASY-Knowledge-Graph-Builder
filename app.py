@@ -16,9 +16,13 @@ from config.app_config import PAGE_CONFIG, STEPS, DEFAULT_CONFIG
 st.set_page_config(**PAGE_CONFIG)
 
 # 加载CSS样式
-with open("styles/main.css", "r", encoding="utf-8") as f:
-    custom_css = f.read()
-st.markdown(f"<style>{custom_css}</style>", unsafe_allow_html=True)
+try:
+    with open("styles/main.css", "r", encoding="utf-8") as f:
+        custom_css = f.read()
+    st.markdown(f"<style>{custom_css}</style>", unsafe_allow_html=True)
+except FileNotFoundError:
+    st.warning("CSS样式文件未找到，使用默认样式")
+    custom_css = ""
 
 # 导入新的核心模块
 from utils.llm_config import LLMConfig, get_preset_configs, create_llm_config_from_preset
