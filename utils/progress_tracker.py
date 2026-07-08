@@ -102,6 +102,12 @@ class ProgressTracker:
         """从持久化存储加载进度"""
         data = state_manager.load('progress', {})
         if data:
+            # 检查状态是否为非IDLE状态（只有RUNNING/PAUSED/ERROR才需要恢复）
+            status = data.get('status', ProcessStatus.IDLE.value)
+            if status == ProcessStatus.IDLE.value:
+                # 如果是IDLE状态，忽略保存的进度
+                return ProcessProgress()
+
             # 处理chunk_progress可能为None的情况
             if data.get('chunk_progress') is None:
                 data['chunk_progress'] = []

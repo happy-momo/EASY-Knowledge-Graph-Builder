@@ -109,7 +109,19 @@ def load_persisted_state():
 def show_resume_prompt():
     """显示恢复提示"""
     if st.session_state.get('_pending_resume') and not st.session_state.get('_resume_shown'):
-        st.warning("⚠️ 检测到未完成的处理任务")
+        # 使用HTML自定义样式，确保文字可见
+        st.markdown(
+            '<div style="background-color: #fef3c7; border: 1px solid #f59e0b; '
+            'border-radius: 8px; padding: 16px; margin: 16px 0; color: #92400e;">'
+            '    <p style="margin: 0; font-weight: 600; color: #92400e;">'
+            '        ⚠️ 检测到未完成的处理任务'
+            '    </p>'
+            '    <p style="margin: 8px 0 0 0; color: #92400e;">'
+            '        您有未完成的处理任务，是否恢复？'
+            '    </p>'
+            '</div>',
+            unsafe_allow_html=True
+        )
         col1, col2 = st.columns(2)
         with col1:
             if st.button("恢复处理", key="resume_processing"):
