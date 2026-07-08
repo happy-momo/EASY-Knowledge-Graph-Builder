@@ -378,19 +378,16 @@ h4 {
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
     margin-bottom: var(--space-2);
+    background: var(--bg-elevated);
+    border: 2px solid var(--border-medium);
+    color: var(--text-disabled);
     transition:
         background-color var(--duration-normal) var(--ease-out),
         box-shadow var(--duration-normal) var(--ease-out),
         transform var(--duration-fast) var(--ease-bounce);
 }
 
-.step-number[data-status="pending"] {
-    background: var(--bg-elevated);
-    border: 2px solid var(--border-medium);
-    color: var(--text-disabled);
-}
-
-.step-number[data-status="active"] {
+.step-number.active {
     background: var(--gradient-brand);
     border: none;
     color: var(--text-inverse);
@@ -398,7 +395,7 @@ h4 {
     animation: stepPulse 2s ease-in-out infinite;
 }
 
-.step-number[data-status="completed"] {
+.step-number.completed {
     background: var(--color-success);
     border: none;
     color: var(--text-inverse);
@@ -417,7 +414,7 @@ h4 {
     transition: color var(--duration-fast) ease;
 }
 
-.step-title[data-status="active"] {
+.step-title.active {
     color: var(--color-primary-600);
     font-weight: var(--font-semibold);
 }
