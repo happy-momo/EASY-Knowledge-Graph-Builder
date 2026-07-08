@@ -100,10 +100,32 @@ def load_persisted_state():
     if saved_llm:
         st.session_state.llm_config = LLMConfig.from_dict(saved_llm)
 
-    # 检查是否有可恢复的进度
-    if progress_tracker.can_resume():
-        st.session_state.current_step = 4
-        st.session_state.is_processing = True
+    # 检查是否有可恢复的进度（仅在用户确认后恢复）
+    if progress_tracker.can_resume() and not st.session_state.get('_resume_shown'):
+        # 显示恢复提示，让用户选择是否恢复
+        st.session_state._pending_resume = True
+
+
+def show_resume_prompt():
+    """显示恢复提示"""
+    if st.session_state.get('_pending_resume') and not st.session_state.get('_resume_shown'):
+        st.warning("⚠️ 检测到未完成的处理任务")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("恢复处理", key="resume_processing"):
+                st.session_state.current_step = 4
+                st.session_state.is_processing = True
+                st.session_state._resume_shown = True
+                st.session_state._pending_resume = False
+                st.rerun()
+        with col2:
+            if st.button("重新开始", key="reset_processing"):
+                progress_tracker.reset()
+                st.session_state._resume_shown = True
+                st.session_state._pending_resume = False
+                st.rerun()
+        return True
+    return False
 
 
 def save_persisted_state():
@@ -121,6 +143,10 @@ def main():
     # 初始化
     init_session_state()
     load_persisted_state()
+
+    # 检查是否需要显示恢复提示
+    if show_resume_prompt():
+        return
 
     # 渲染步骤导航
     render_step_navigation(
