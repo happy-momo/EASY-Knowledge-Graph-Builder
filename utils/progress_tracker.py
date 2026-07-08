@@ -105,7 +105,8 @@ class ProgressTracker:
             # 检查状态是否为非IDLE状态（只有RUNNING/PAUSED/ERROR才需要恢复）
             status = data.get('status', ProcessStatus.IDLE.value)
             if status == ProcessStatus.IDLE.value:
-                # 如果是IDLE状态，忽略保存的进度
+                # 如果是IDLE状态，清除进度文件并返回空进度
+                state_manager.clear('progress')
                 return ProcessProgress()
 
             # 处理chunk_progress可能为None的情况

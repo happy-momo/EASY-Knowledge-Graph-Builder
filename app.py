@@ -80,7 +80,9 @@ def init_session_state():
         'is_processing': False,
         'processing_result': None,
         'review_state': None,
-        'llm_config': None
+        'llm_config': None,
+        '_resume_shown': False,
+        '_pending_resume': False
     }
 
     for key, value in defaults.items():
