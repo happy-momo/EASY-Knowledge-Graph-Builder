@@ -239,6 +239,9 @@ class ProgressTracker:
         self._progress.status = ProcessStatus.COMPLETED.value
         self._progress.end_time = time.time()
         self.save()
+        # 完成后重置为IDLE，避免下次启动时检测到未完成的任务
+        self._progress.status = ProcessStatus.IDLE.value
+        self.save()
 
     def error(self, message: str = None):
         """处理出错"""
