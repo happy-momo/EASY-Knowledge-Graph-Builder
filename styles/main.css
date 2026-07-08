@@ -1,44 +1,30 @@
 /*
  * KG AI Builder - 产品化视觉系统
  * 低对比度 · 科技感 · 流畅动画
- *
- * 设计原则：
- * - 浅色背景，低对比度，减少视觉疲劳
- * - 紫蓝渐变作为品牌色，营造科技感
- * - 大量留白，信息层级清晰
- * - 流畅的微动画，提升交互体验
- * - 玻璃拟态效果，增加层次感
  */
 
 /* ==================== 设计令牌 ==================== */
 :root {
-    /*
-     * 色彩系统
-     * 使用HSL色彩空间，便于调整饱和度和亮度
-     */
-
-    /* 主色调 - 科技蓝紫 */
-    --color-primary-hue: 245;
-    --color-primary-50:  hsl(var(--color-primary-hue), 90%, 97%);
-    --color-primary-100: hsl(var(--color-primary-hue), 85%, 92%);
-    --color-primary-200: hsl(var(--color-primary-hue), 80%, 85%);
-    --color-primary-300: hsl(var(--color-primary-hue), 75%, 75%);
-    --color-primary-400: hsl(var(--color-primary-hue), 70%, 60%);
-    --color-primary-500: hsl(var(--color-primary-hue), 65%, 50%);
-    --color-primary-600: hsl(var(--color-primary-hue), 70%, 45%);
-    --color-primary-700: hsl(var(--color-primary-hue), 75%, 40%);
+    /* 主色调 - 科技蓝紫 (hue: 245) */
+    --color-primary-50:  #eef2ff;
+    --color-primary-100: #e0e7ff;
+    --color-primary-200: #c7d2fe;
+    --color-primary-300: #a5b4fc;
+    --color-primary-400: #818cf8;
+    --color-primary-500: #6366f1;
+    --color-primary-600: #4f46e5;
+    --color-primary-700: #4338ca;
 
     /* 次要色 - 青蓝 */
-    --color-secondary-hue: 190;
-    --color-secondary-100: hsl(var(--color-secondary-hue), 70%, 92%);
-    --color-secondary-400: hsl(var(--color-secondary-hue), 60%, 55%);
-    --color-secondary-500: hsl(var(--color-secondary-hue), 65%, 48%);
+    --color-secondary-100: #ccfbf1;
+    --color-secondary-400: #2dd4bf;
+    --color-secondary-500: #14b8a6;
 
     /* 功能色 */
-    --color-success: hsl(150, 60%, 45%);
-    --color-warning: hsl(35, 85%, 50%);
-    --color-error: hsl(350, 70%, 55%);
-    --color-info: hsl(210, 70%, 55%);
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+    --color-info: #3b82f6;
 
     /* 中性色 - 低对比度 */
     --color-neutral-0:   #FFFFFF;
@@ -65,14 +51,13 @@
     --bg-secondary: var(--color-neutral-100);
     --bg-tertiary:  var(--color-neutral-200);
     --bg-elevated:  var(--color-neutral-0);
-    --bg-overlay:   rgba(255, 255, 255, 0.85);
 
     /* 边框 */
     --border-light:   var(--color-neutral-200);
     --border-medium:  var(--color-neutral-300);
     --border-strong:  var(--color-neutral-400);
 
-    /* 阴影 - 柔和的弥散阴影 */
+    /* 阴影 */
     --shadow-xs:  0 1px 2px  rgba(0, 0, 0, 0.04);
     --shadow-sm:  0 2px 4px  rgba(0, 0, 0, 0.05);
     --shadow-md:  0 4px 12px rgba(0, 0, 0, 0.06);
@@ -80,25 +65,14 @@
     --shadow-xl:  0 16px 48px rgba(0, 0, 0, 0.10);
 
     /* 阴影 - 品牌色发光 */
-    --shadow-glow-sm: 0 0 12px hsla(var(--color-primary-hue), 70%, 60%, 0.15);
-    --shadow-glow-md: 0 0 24px hsla(var(--color-primary-hue), 70%, 60%, 0.20);
-    --shadow-glow-lg: 0 0 48px hsla(var(--color-primary-hue), 70%, 60%, 0.25);
+    --shadow-glow-sm: 0 0 12px rgba(99, 102, 241, 0.15);
+    --shadow-glow-md: 0 0 24px rgba(99, 102, 241, 0.20);
+    --shadow-glow-lg: 0 0 48px rgba(99, 102, 241, 0.25);
 
     /* 渐变 */
-    --gradient-brand: linear-gradient(135deg,
-        hsl(var(--color-primary-hue), 65%, 55%) 0%,
-        hsl(calc(var(--color-primary-hue) + 20), 60%, 60%) 100%
-    );
-
-    --gradient-surface: linear-gradient(180deg,
-        var(--color-neutral-0) 0%,
-        var(--color-neutral-50) 100%
-    );
-
-    --gradient-glass: linear-gradient(135deg,
-        rgba(255, 255, 255, 0.7) 0%,
-        rgba(255, 255, 255, 0.4) 100%
-    );
+    --gradient-brand: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --gradient-surface: linear-gradient(180deg, #ffffff 0%, #FAFBFC 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.4) 100%);
 
     /* 圆角 */
     --radius-sm:  6px;
@@ -107,7 +81,7 @@
     --radius-xl:  24px;
     --radius-full: 9999px;
 
-    /* 间距系统 - 8px基准 */
+    /* 间距 */
     --space-1:  4px;
     --space-2:  8px;
     --space-3:  12px;
@@ -156,13 +130,6 @@
     --ease-bounce:  cubic-bezier(0.34, 1.56, 0.64, 1);
     --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
     --ease-spring:  cubic-bezier(0.175, 0.885, 0.32, 1.275);
-
-    /* Z-index层级 */
-    --z-base:     0;
-    --z-dropdown: 100;
-    --z-sticky:   200;
-    --z-modal:    300;
-    --z-tooltip:  400;
 }
 
 /* ==================== 全局样式 ==================== */
@@ -180,7 +147,6 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* ==================== 页面布局 ==================== */
 .main {
     background-color: var(--bg-primary);
     min-height: 100vh;
@@ -332,7 +298,7 @@ h4 {
 }
 
 .btn-danger:hover {
-    background: hsl(350, 70%, 48%);
+    background: #dc2626;
 }
 
 /* ==================== 输入框系统 ==================== */
@@ -439,8 +405,8 @@ h4 {
 }
 
 @keyframes stepPulse {
-    0%, 100% { box-shadow: 0 0 0 0 hsla(var(--color-primary-hue), 70%, 60%, 0.3); }
-    50% { box-shadow: 0 0 0 8px hsla(var(--color-primary-hue), 70%, 60%, 0); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
 }
 
 .step-title {
@@ -482,12 +448,7 @@ h4 {
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.3),
-        transparent
-    );
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
     animation: progressShine 2s ease-in-out infinite;
 }
 
@@ -685,23 +646,23 @@ h4 {
 }
 
 .badge-success {
-    background: hsl(150, 60%, 95%);
-    color: var(--color-success);
+    background: #d1fae5;
+    color: #059669;
 }
 
 .badge-warning {
-    background: hsl(35, 85%, 95%);
-    color: var(--color-warning);
+    background: #fef3c7;
+    color: #d97706;
 }
 
 .badge-error {
-    background: hsl(350, 70%, 95%);
-    color: var(--color-error);
+    background: #fee2e2;
+    color: #dc2626;
 }
 
 .badge-info {
-    background: hsl(210, 70%, 95%);
-    color: var(--color-info);
+    background: #dbeafe;
+    color: #2563eb;
 }
 
 /* ==================== 终端风格展示 ==================== */
@@ -756,27 +717,27 @@ h4 {
 }
 
 .alert-success {
-    background: hsl(150, 60%, 95%);
-    border-color: hsl(150, 60%, 85%);
-    color: hsl(150, 60%, 30%);
+    background: #d1fae5;
+    border-color: #a7f3d0;
+    color: #065f46;
 }
 
 .alert-warning {
-    background: hsl(35, 85%, 95%);
-    border-color: hsl(35, 85%, 85%);
-    color: hsl(35, 85%, 30%);
+    background: #fef3c7;
+    border-color: #fde68a;
+    color: #92400e;
 }
 
 .alert-error {
-    background: hsl(350, 70%, 95%);
-    border-color: hsl(350, 70%, 85%);
-    color: hsl(350, 70%, 30%);
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #991b1b;
 }
 
 .alert-info {
-    background: hsl(210, 70%, 95%);
-    border-color: hsl(210, 70%, 85%);
-    color: hsl(210, 70%, 30%);
+    background: #dbeafe;
+    border-color: #bfdbfe;
+    color: #1e40af;
 }
 
 /* ==================== 模态框 ==================== */
@@ -788,7 +749,7 @@ h4 {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: var(--z-modal);
+    z-index: 300;
     animation: fadeIn var(--duration-normal) var(--ease-out);
 }
 
