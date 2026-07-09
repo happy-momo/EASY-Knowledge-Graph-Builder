@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 
 from utils.state_manager import state_manager
+import os
 
 
 class ProcessStatus(Enum):
@@ -259,6 +260,8 @@ class ProgressTracker:
 
     def can_resume(self) -> bool:
         """是否可以恢复处理"""
+        if self._is_progress_stale():
+            return False
         return (
             self._progress.status in (
                 ProcessStatus.RUNNING.value,
@@ -268,6 +271,18 @@ class ProgressTracker:
             and self._progress.processed_chunks < self._progress.total_chunks
             and self._progress.total_chunks > 0
         )
+
+    def _is_progress_stale(self) -> bool:
+        """检查进度数据是否过时（超过5分钟）"""
+        try:
+            data_dir = state_manager.data_dir
+            progress_file = data_dir / "progress.json"
+            if not progress_file.exists():
+                return True
+            mtime = os.path.getmtime(progress_file)
+            return (time.time() - mtime) > 300  # 5 minutes
+        except (OSError, AttributeError):
+            return True
 
     def get_pending_chunks(self) -> List[int]:
         """获取待处理的分块索引"""

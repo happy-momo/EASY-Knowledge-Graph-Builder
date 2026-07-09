@@ -6,7 +6,6 @@ from typing import Dict, List, Any
 PAGE_CONFIG = {
     "page_title": "KG AI Builder",
     "layout": "wide",
-    "page_icon": "🔗",
     "initial_sidebar_state": "collapsed"
 }
 

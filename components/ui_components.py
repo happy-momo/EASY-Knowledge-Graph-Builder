@@ -3,8 +3,8 @@ import streamlit as st
 
 def display_header():
     """显示页面标题和副标题"""
-    st.markdown("# 📊 Knowledge Graph Builder")
-    st.markdown("### 🔄 从文档到知识图谱的智能转化")
+    st.markdown("# Knowledge Graph Builder")
+    st.markdown("### 从文档到知识图谱的智能转化")
 
 
 
@@ -88,7 +88,7 @@ def display_neo4j_config():
     st.markdown("- 请确保您已经安装并启动了Neo4j数据库服务")
 
     # 高级配置折叠面板
-    with st.expander("🔧 高级配置", expanded=False):
+    with st.expander("高级配置", expanded=False):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.session_state.neo4j_uri = st.text_input("URI", value="neo4j://localhost:7687")
@@ -105,7 +105,7 @@ def display_build_button():
     col1, col2 = st.columns([1, 5])
     with col1:
         build_button = st.button(
-            "▶ Build Graph",
+            "Build Graph",
             use_container_width=True,
             key="build_graph_button",
             type="primary"
