@@ -1,128 +1,141 @@
 """
-配置页面组件 - 简化版
-
-用户只需配置：厂商、API 端点、API Key、模型名称
+配置页面组件 - 简化 LLM 配置 UI
+用户只需选择厂商，配置 URL、API Key 和模型名称
 """
 
 import streamlit as st
+import os
 from typing import Dict, Tuple, List
 
 from utils.llm_config import (
-    LLMConfig, get_preset_configs, get_required_package,
-    get_api_key_from_env, test_llm_connection
+    LLMConfig, get_preset_configs, create_llm_config_from_preset,
+    validate_llm_config, get_api_key_from_env, test_llm_connection,
+    get_required_package, PROVIDER_DEFAULTS
 )
 from utils.neo4j_manager import Neo4jManager
 from config.app_config import DEFAULT_CONFIG, HELP_TEXTS
 
+# 厂商中文名称映射
+PROVIDER_NAMES = {
+    "zhipu": "智谱 AI",
+    "openai": "OpenAI",
+    "anthropic": "Anthropic (Claude)",
+    "google": "Google (Gemini)",
+    "alibaba": "阿里云 (通义千问)",
+    "deepseek": "深度求索 (DeepSeek)",
+    "moonshot": "月之暗面 (Kimi)",
+    "custom": "自定义",
+}
+
 
 def render_config_section() -> Dict:
-    """渲染配置界面"""
+    """
+    渲染配置界面
+    """
     st.markdown('<h3 style="color: var(--text-primary); margin-bottom: 1rem;">配置设置</h3>', unsafe_allow_html=True)
 
-    llm_config = render_llm_config()
+    llm_config = render_llm_config_simple()
     neo4j_config = render_neo4j_config()
     review_mode = render_review_mode_config()
 
-    return {
+    config = {
         "llm": llm_config,
         "neo4j": neo4j_config,
         "review_mode": review_mode
     }
 
+    return config
 
-def render_llm_config() -> Dict:
-    """渲染 LLM 配置 - 简化版：厂商 + 端点 + Key + 模型"""
+
+def render_llm_config_simple() -> Dict:
+    """渲染简化版 LLM 配置 - 只需选择厂商、API 端点、API Key、模型名称"""
     st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">LLM 模型配置</h4>', unsafe_allow_html=True)
 
-    # 厂商选择
-    provider_options = {
-        "openai": "OpenAI",
-        "zhipu": "智谱 AI",
-        "alibaba": "阿里云通义千问",
-        "deepseek": "深度求索",
-        "moonshot": "月之暗面 Kimi",
-        "anthropic": "Anthropic Claude",
-        "google": "Google Gemini",
-        "custom": "自定义",
-    }
+    presets = get_preset_configs()
+    preset_keys = list(presets.keys())
+
+    # 提取唯一的厂商
+    unique_providers = {}
+    for k in preset_keys:
+        provider = presets[k].get('provider', 'custom')
+        if provider not in unique_providers:
+            unique_providers[provider] = k
+
+    provider_options = list(unique_providers.keys())
+
+    # 从首页快速连接预选
+    quick_llm = st.session_state.get('quick_llm_config', {})
+    default_idx = 0
+    if quick_llm:
+        quick_provider = quick_llm.get('provider', '')
+        for i, provider in enumerate(provider_options):
+            if provider == quick_provider:
+                default_idx = i
+                break
 
     selected_provider = st.selectbox(
-        "厂商",
-        options=list(provider_options.keys()),
-        format_func=lambda x: provider_options[x],
-        key="llm_provider"
+        "选择厂商",
+        options=provider_options,
+        format_func=lambda x: PROVIDER_NAMES.get(x, x.upper()),
+        index=default_idx,
+        key="config_llm_provider",
+        help="选择 LLM 提供商"
     )
 
-    # 获取厂商默认值
-    from utils.llm_config import PROVIDER_DEFAULTS
-    defaults = PROVIDER_DEFAULTS.get(selected_provider, PROVIDER_DEFAULTS["custom"])
+    # 获取该厂商的默认预设
+    preset_key = unique_providers.get(selected_provider, "custom")
+    preset = presets.get(preset_key, presets["custom"])
+    provider_defaults = PROVIDER_DEFAULTS.get(selected_provider, PROVIDER_DEFAULTS["custom"])
 
-    # API 端点
-    default_endpoint = defaults.get("api_endpoint", "")
+    # 显示所需包
+    required_package = get_required_package(selected_provider)
+
+    # API 端点（可编辑）
     api_endpoint = st.text_input(
         "API 端点",
-        value=default_endpoint if selected_provider != "custom" else "",
+        value=preset.get('api_endpoint', ''),
         placeholder="https://api.example.com/v1/",
-        key="llm_endpoint"
+        help=f"选择厂商后自动填充，可手动修改。默认：{provider_defaults.get('api_endpoint', 'N/A')}"
     )
 
-    # API Key
+    # API Key 输入
     env_key = get_api_key_from_env(selected_provider)
     if env_key:
         st.markdown(
-            '<div style="background-color: #D1FAE5; border: 1px solid #6EE7B7; '
-            'border-radius: 6px; padding: 8px 12px; margin: 8px 0; '
-            'color: #065F46; font-size: 0.85rem;">'
-            f'✓ 已从环境变量检测到 API Key ({env_key[:8]}...)'
+            '<div style="background: var(--color-success-bg); border: 1px solid var(--color-success); '
+            'border-radius: var(--radius-sm); padding: 6px 10px; font-size: 0.8rem; color: var(--text-success);">'
+            f'已从环境变量加载 API Key ({env_key[:8]}...)'
             '</div>',
             unsafe_allow_html=True
         )
-        api_key = st.text_input(
-            "API Key",
-            value=env_key,
-            type="password",
-            key="llm_apikey"
-        )
+        api_key = env_key
     else:
         api_key = st.text_input(
             "API Key",
             type="password",
             placeholder="输入 API Key",
-            key="llm_apikey"
+            key="config_llm_apikey",
+            help="支持从环境变量自动读取"
         )
 
-    # 模型名称
-    default_model = ""
-    if selected_provider == "openai":
-        default_model = "gpt-4o"
-    elif selected_provider == "zhipu":
-        default_model = "glm-4"
-    elif selected_provider == "alibaba":
-        default_model = "qwen-turbo"
-    elif selected_provider == "deepseek":
-        default_model = "deepseek-chat"
-    elif selected_provider == "moonshot":
-        default_model = "moonshot-v1-8k"
-    elif selected_provider == "anthropic":
-        default_model = "claude-3-opus-20240229"
-    elif selected_provider == "google":
-        default_model = "gemini-pro"
-
+    # 模型名称输入
     model_name = st.text_input(
         "模型名称",
-        value=default_model,
-        placeholder="如：gpt-4o, glm-4, claude-3-opus...",
-        key="llm_model"
+        value=preset.get('model_name', ''),
+        placeholder="例如：glm-4, gpt-4, claude-3",
+        key="config_llm_model_name"
     )
 
-    # 显示所需包
-    required_package = get_required_package(selected_provider)
-    st.caption(f"所需包：`{required_package}`")
+    # 显示厂商信息
+    st.caption(
+        f"所需包：`{required_package}` | "
+        f"默认端点：{provider_defaults.get('api_endpoint', 'N/A')}"
+    )
 
-    # 测试连接
-    if api_endpoint and api_key and model_name:
-        if st.button("测试连接", key="test_llm", use_container_width=True):
-            with st.spinner("测试中..."):
+    # 测试按钮
+    if api_key and model_name and api_endpoint:
+        if st.button("测试连接", key="test_llm_config"):
+            with st.spinner("正在测试..."):
                 config = LLMConfig(
                     api_endpoint=api_endpoint,
                     api_key=api_key,
@@ -131,18 +144,22 @@ def render_llm_config() -> Dict:
                 )
                 success, message = test_llm_connection(config)
                 if success:
-                    st.success(message)
+                    st.success(f"连接成功 ✓")
                 else:
-                    st.error(message)
+                    st.error(f"连接失败：{message[:100]}")
 
     # 返回配置
-    if api_endpoint and api_key and model_name:
-        return LLMConfig(
-            api_endpoint=api_endpoint,
-            api_key=api_key,
-            model_name=model_name,
-            provider=selected_provider
-        ).to_dict()
+    if api_key and model_name and api_endpoint:
+        try:
+            llm_config = LLMConfig(
+                api_endpoint=api_endpoint,
+                api_key=api_key,
+                model_name=model_name,
+                provider=selected_provider
+            )
+            return llm_config.to_dict()
+        except ValueError as e:
+            st.error(str(e))
 
     return {}
 
@@ -151,22 +168,53 @@ def render_neo4j_config() -> Dict:
     """渲染 Neo4j 配置"""
     st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">Neo4j 数据库配置</h4>', unsafe_allow_html=True)
 
-    st.info("默认：URI `bolt://localhost:7687`，用户名 `neo4j`，只需设置密码。")
+    # 从首页快速连接预填
+    quick_cfg = st.session_state.get('quick_neo4j_config', {})
+    default_uri = quick_cfg.get('uri', DEFAULT_CONFIG['neo4j_uri'])
+    default_user = quick_cfg.get('user', DEFAULT_CONFIG['neo4j_user'])
+    default_pwd = quick_cfg.get('password', '')
 
-    neo4j_uri = st.text_input("URI", value=DEFAULT_CONFIG['neo4j_uri'], key="neo4j_uri")
-    neo4j_user = st.text_input("用户名", value=DEFAULT_CONFIG['neo4j_user'], key="neo4j_user")
-    neo4j_password = st.text_input("密码", type="password", placeholder="输入密码", key="neo4j_password")
+    st.info("默认配置：URI `bolt://localhost:7687`，用户名 `neo4j`。大多数情况下只需设置密码。")
+
+    show_advanced = st.checkbox("显示高级配置", value=False)
+
+    if show_advanced:
+        col1, col2 = st.columns(2)
+        with col1:
+            neo4j_uri = st.text_input(
+                "URI",
+                value=default_uri,
+                help=HELP_TEXTS.get("neo4j_uri", "")
+            )
+        with col2:
+            neo4j_user = st.text_input(
+                "用户名",
+                value=default_user
+            )
+    else:
+        neo4j_uri = default_uri
+        neo4j_user = default_user
+
+    neo4j_password = st.text_input(
+        "密码",
+        type="password",
+        value=default_pwd,
+        placeholder="输入 Neo4j 密码",
+        help=HELP_TEXTS.get("neo4j_password", "")
+    )
 
     if neo4j_password:
-        if st.button("测试连接", key="test_neo4j", use_container_width=True):
+        if st.button("测试连接", key="test_neo4j"):
             with st.spinner("测试中..."):
                 manager = Neo4jManager(neo4j_uri, neo4j_user, neo4j_password)
                 success, message = manager.test_connection()
                 if success:
-                    st.success(message)
+                    st.success(f"连接成功 ✓")
                 else:
-                    st.error(message)
+                    st.error(f"连接失败：{message[:100]}")
                 manager.close()
+
+    st.markdown('<hr style="border: none; border-top: 1px solid #E2E8F0; margin: 1rem 0;">', unsafe_allow_html=True)
 
     return {
         "uri": neo4j_uri,
@@ -177,24 +225,35 @@ def render_neo4j_config() -> Dict:
 
 def render_review_mode_config() -> str:
     """渲染审核模式配置"""
-    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">审核模式</h4>', unsafe_allow_html=True)
+    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">审核设置</h4>', unsafe_allow_html=True)
 
     review_mode = st.radio(
         "审核模式",
         options=["auto", "manual"],
         format_func=lambda x: {
-            "auto": "自动审核 - 抽取后直接入库",
+            "auto": "自动审核（推荐）- 抽取后直接入库",
             "manual": "人工审核 - 逐个确认三元组"
         }[x],
-        horizontal=True,
-        key="review_mode"
+        help=HELP_TEXTS.get("review_mode", "")
     )
+
+    if review_mode == "manual":
+        st.info("""
+        **人工审核模式**：
+        - 抽取完成后展示所有三元组
+        - 您可以逐个确认、编辑或删除
+        - 只有确认后的三元组才会存入数据库
+        """)
+
+    st.markdown('<hr style="border: none; border-top: 1px solid #E2E8F0; margin: 1rem 0;">', unsafe_allow_html=True)
 
     return review_mode
 
 
 def validate_config(config: Dict) -> Tuple[bool, List[str]]:
-    """验证配置"""
+    """
+    验证配置是否完整
+    """
     missing = []
 
     llm = config.get('llm', {})
@@ -209,3 +268,37 @@ def validate_config(config: Dict) -> Tuple[bool, List[str]]:
         missing.append("Neo4j 密码")
 
     return len(missing) == 0, missing
+
+
+def render_config_summary(config: Dict):
+    """渲染配置摘要"""
+    st.markdown('<h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">配置摘要</h3>', unsafe_allow_html=True)
+
+    llm = config.get('llm', {})
+    model_name = llm.get('model_name', '未设置')
+    provider = llm.get('provider', '未设置')
+    api_key_display = (llm.get('api_key', '未设置')[:8] + '...') if llm.get('api_key') else '未设置'
+    neo4j_uri = config.get('neo4j', {}).get('uri', '未设置')
+    review_mode = config.get('review_mode', '未设置')
+
+    summary_html = (
+        '<div class="info-panel">'
+        f'<div class="info-panel-row"><span class="info-panel-label">LLM Model</span><span class="info-panel-value">{model_name}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">Provider</span><span class="info-panel-value">{PROVIDER_NAMES.get(provider, provider.upper())}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">API Key</span><span class="info-panel-value">{api_key_display}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">Neo4j URI</span><span class="info-panel-value">{neo4j_uri}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">Review Mode</span><span class="info-panel-value">{review_mode}</span></div>'
+        '</div>'
+    )
+
+    st.markdown(summary_html, unsafe_allow_html=True)
+
+
+def save_config_to_state(config: Dict):
+    """保存配置到 session_state"""
+    st.session_state['config'] = config
+
+
+def load_config_from_state() -> Dict:
+    """从 session_state 加载配置"""
+    return st.session_state.get('config', {})
