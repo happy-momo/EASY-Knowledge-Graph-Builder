@@ -417,52 +417,31 @@ def create_chat_model(config: LLMConfig):
     """
     chat_config = config.get_chat_config()
     chat_module = chat_config.pop("chat_module")
-    chat_class = chat_config.pop("chat_class")
+    chat_class_name = chat_config.pop("chat_class")
 
     try:
         if chat_module == "langchain_openai":
             from langchain_openai import ChatOpenAI
-            return ChatOpenAI(
-                model=chat_config["model"],
-                api_key=chat_config["api_key"],
-                base_url=chat_config.get("base_url"),
-                temperature=chat_config.get("temperature", 0.1),
-                max_tokens=chat_config.get("max_tokens"),
-                timeout=config.timeout,
-                **chat_config
-            )
+            # 添加 timeout 参数
+            chat_config["timeout"] = config.timeout
+            return ChatOpenAI(**chat_config)
+
         elif chat_module == "langchain_anthropic":
             from langchain_anthropic import ChatAnthropic
-            return ChatAnthropic(
-                model=chat_config["model"],
-                anthropic_api_key=chat_config["anthropic_api_key"],
-                anthropic_api_url=chat_config.get("anthropic_api_url"),
-                temperature=chat_config.get("temperature", 0.1),
-                max_tokens=chat_config.get("max_tokens"),
-                timeout=config.timeout,
-                **chat_config
-            )
+            # 添加 timeout 参数
+            chat_config["timeout"] = config.timeout
+            return ChatAnthropic(**chat_config)
+
         elif chat_module == "langchain_google_genai":
             from langchain_google_genai import ChatGoogleGenerativeAI
-            return ChatGoogleGenerativeAI(
-                model=chat_config["model"],
-                google_api_key=chat_config["google_api_key"],
-                temperature=chat_config.get("temperature", 0.1),
-                max_output_tokens=chat_config.get("max_output_tokens"),
-                **chat_config
-            )
+            return ChatGoogleGenerativeAI(**chat_config)
+
         else:
             # 默认使用 OpenAI 兼容接口
             from langchain_openai import ChatOpenAI
-            return ChatOpenAI(
-                model=chat_config["model"],
-                api_key=chat_config["api_key"],
-                base_url=chat_config.get("base_url"),
-                temperature=chat_config.get("temperature", 0.1),
-                max_tokens=chat_config.get("max_tokens"),
-                timeout=config.timeout,
-                **chat_config
-            )
+            chat_config["timeout"] = config.timeout
+            return ChatOpenAI(**chat_config)
+
     except ImportError as e:
         raise ImportError(f"缺少必要的 LangChain 包：{e}\n请安装：pip install {chat_module}")
 
