@@ -1,6 +1,5 @@
 """
-欢迎引导页 - 简化 LLM 配置 UI
-用户只需选择厂商，配置 URL、API Key 和模型名称
+欢迎引导页 - 集成快速连接与环境检测
 """
 
 import streamlit as st
@@ -19,8 +18,8 @@ _ICONS = {
     "zap": '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
 }
 
-# 厂商中文名称映射
-PROVIDER_NAMES = {
+# 厂商显示名称映射
+PROVIDER_DISPLAY_NAMES = {
     "zhipu": "智谱 AI",
     "openai": "OpenAI",
     "anthropic": "Anthropic (Claude)",
@@ -31,12 +30,24 @@ PROVIDER_NAMES = {
     "custom": "自定义",
 }
 
+# 厂商默认配置
+PROVIDER_DEFAULTS = {
+    "zhipu": {"api_endpoint": "https://open.bigmodel.cn/api/paas/v4/", "model_example": "glm-4, glm-4-flash"},
+    "openai": {"api_endpoint": "https://api.openai.com/v1/", "model_example": "gpt-4, gpt-4o, gpt-3.5-turbo"},
+    "anthropic": {"api_endpoint": "https://api.anthropic.com/", "model_example": "claude-3-opus-20240229, claude-3-sonnet-20240229"},
+    "google": {"api_endpoint": "", "model_example": "gemini-pro, gemini-1.5-pro"},
+    "alibaba": {"api_endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/", "model_example": "qwen-turbo, qwen-plus"},
+    "deepseek": {"api_endpoint": "https://api.deepseek.com/", "model_example": "deepseek-chat, deepseek-coder"},
+    "moonshot": {"api_endpoint": "https://api.moonshot.cn/v1/", "model_example": "moonshot-v1-8k, moonshot-v1-32k"},
+    "custom": {"api_endpoint": "", "model_example": "任意模型名称"},
+}
+
 
 def render_welcome_page():
     """渲染欢迎页 - 环境检测 + 快速连接"""
 
     from utils.env_checker import check_all_api_keys, get_environment_status
-    from utils.llm_config import get_preset_configs, get_api_key_from_env, LLMConfig, test_llm_connection
+    from utils.llm_config import LLMConfig, test_llm_connection, get_api_key_from_env
     from utils.neo4j_manager import Neo4jManager
     from config.app_config import DEFAULT_CONFIG
 
@@ -83,7 +94,7 @@ def render_welcome_page():
 
     # -- LLM 快速连接 --
     with col_llm:
-        _render_llm_quick_connect(api_keys_status, configured_any, get_preset_configs, get_api_key_from_env, test_llm_connection, LLMConfig)
+        _render_llm_quick_connect_simple(api_keys_status, get_api_key_from_env, LLMConfig, test_llm_connection)
 
     # -- Neo4j 快速连接 --
     with col_neo4j:
@@ -137,24 +148,16 @@ def render_welcome_page():
     return None
 
 
-def _render_llm_quick_connect(api_keys_status, configured_any, get_preset_configs_fn, get_api_key_fn, test_llm_fn, LLMConfigCls):
-    """渲染 LLM 快速连接面板 - 简化版：选择厂商 + API 端点 + API Key + 模型名称"""
+def _render_llm_quick_connect_simple(api_keys_status, get_api_key_fn, LLMConfigCls, test_llm_fn):
+    """渲染 LLM 快速连接面板 - 简化版（厂商选择 + API 端点 + API Key + 模型名称）"""
     st.markdown(
         f'<div class="quick-connect-header">{_ICONS["zap"]} LLM 模型</div>',
         unsafe_allow_html=True
     )
 
-    presets = get_preset_configs_fn()
-    preset_keys = list(presets.keys())
-
-    # 提取唯一的厂商
-    unique_providers = {}
-    for k in preset_keys:
-        provider = presets[k].get('provider', 'custom')
-        if provider not in unique_providers:
-            unique_providers[provider] = k
-
-    provider_options = list(unique_providers.keys())
+    # 厂商选择
+    provider_options = list(PROVIDER_DISPLAY_NAMES.keys())
+    provider_display_options = [PROVIDER_DISPLAY_NAMES[p] for p in provider_options]
 
     # 自动选中已检测到 API Key 的厂商
     default_idx = 0
@@ -163,36 +166,39 @@ def _render_llm_quick_connect(api_keys_status, configured_any, get_preset_config
             default_idx = i
             break
 
-    selected_provider = st.selectbox(
-        "选择厂商",
-        options=provider_options,
-        format_func=lambda x: PROVIDER_NAMES.get(x, x.upper()),
+    selected_display = st.selectbox(
+        "选择模型厂商",
+        options=provider_display_options,
         index=default_idx,
         key="quick_llm_provider",
         label_visibility="collapsed"
     )
+    provider = provider_options[provider_display_options.index(selected_display)]
 
-    # 获取该厂商的默认预设
-    preset_key = unique_providers.get(selected_provider, "custom")
-    preset = presets.get(preset_key, presets["custom"])
+    # 获取厂商默认配置
+    provider_defaults = PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["custom"])
+    default_endpoint = provider_defaults.get("api_endpoint", "")
+    model_example = provider_defaults.get("model_example", "")
 
-    # API 端点（可编辑）
+    # 显示厂商信息
+    st.caption(f"示例模型：{model_example}")
+
+    # API 端点
     api_endpoint = st.text_input(
         "API 端点",
-        value=preset.get('api_endpoint', ''),
+        value=default_endpoint,
         placeholder="https://api.example.com/v1/",
         key="quick_llm_endpoint",
-        label_visibility="collapsed",
-        help="选择厂商后自动填充，可手动修改"
+        label_visibility="collapsed"
     )
 
-    # API Key 输入
-    env_key = get_api_key_fn(selected_provider)
+    # API Key
+    env_key = get_api_key_fn(provider)
     if env_key:
         st.markdown(
             '<div style="background: var(--color-success-bg); border: 1px solid var(--color-success); '
             'border-radius: var(--radius-sm); padding: 6px 10px; font-size: 0.8rem; color: var(--text-success);">'
-            f'已从环境变量加载 API Key ({env_key[:8]}...)'
+            f'✓ 已检测到 API Key ({env_key[:8]}...)'
             '</div>',
             unsafe_allow_html=True
         )
@@ -206,42 +212,41 @@ def _render_llm_quick_connect(api_keys_status, configured_any, get_preset_config
             label_visibility="collapsed"
         )
 
-    # 模型名称输入
+    # 模型名称
     model_name = st.text_input(
         "模型名称",
-        value=preset.get('model_name', ''),
-        placeholder="例如：glm-4, gpt-4, claude-3",
+        placeholder=model_example,
         key="quick_llm_model_name",
         label_visibility="collapsed"
     )
 
     # 测试按钮
-    if api_key and model_name:
-        if st.button("测试连接", key="quick_test_llm", use_container_width=True):
+    if api_endpoint and api_key and model_name:
+        if st.button("测试 LLM 连接", key="quick_test_llm", use_container_width=True):
             with st.spinner("正在测试..."):
                 try:
                     config = LLMConfigCls(
                         api_endpoint=api_endpoint,
                         api_key=api_key,
                         model_name=model_name,
-                        provider=selected_provider
+                        provider=provider
                     )
                     success, message = test_llm_fn(config)
                     if success:
-                        st.success("连接成功 ✓")
+                        st.success("连接成功")
                     else:
                         st.error(f"连接失败：{message[:80]}")
                 except Exception as e:
                     st.error(f"配置错误：{str(e)[:80]}")
 
-    # 保存到 session_state 供后续步骤使用
-    if api_key and model_name and api_endpoint:
+    # 保存到 session_state
+    if api_endpoint and api_key and model_name:
         try:
             config = LLMConfigCls(
                 api_endpoint=api_endpoint,
                 api_key=api_key,
                 model_name=model_name,
-                provider=selected_provider
+                provider=provider
             )
             st.session_state['quick_llm_config'] = config.to_dict()
         except ValueError:
@@ -286,7 +291,7 @@ def _render_neo4j_quick_connect(DEFAULT_CONFIG, Neo4jManager):
                 manager = Neo4jManager(neo4j_uri, neo4j_user, neo4j_password)
                 success, message = manager.test_connection()
                 if success:
-                    st.success("连接成功 ✓")
+                    st.success("连接成功")
                 else:
                     st.error(f"连接失败：{message[:80]}")
                 manager.close()
@@ -309,13 +314,13 @@ def render_help_section():
 
         **步骤 2: 文档导入** — 上传单个文件（PDF/DOCX/XLSX/TXT）或导入文件夹批量处理
 
-        **步骤 3: 配置连接** — 选择 LLM 厂商，输入 API 端点、API Key 和模型名称
+        **步骤 3: 配置连接** — 选择 LLM 模型并输入 API Key，配置 Neo4j 数据库连接
 
         **步骤 4: 抽取处理** — 系统逐块处理文本，使用 LLM 抽取三元组
 
-        **步骤 5: 审核入库** — 自动审核模式直接存入数据库，人工审核模式需逐个确认
+        **步骤 5: 审核** — 自动审核模式直接入库，人工审核模式逐个确认
 
-        **步骤 6: 完成** — 在 Neo4j Browser 中查看知识图谱
+        **步骤 6: 完成** — 查看统计，在 Neo4j Browser 中查看知识图谱
         """)
 
 
@@ -324,15 +329,11 @@ def render_docker_help():
     with st.expander("Docker 部署", expanded=False):
         st.markdown("""
         ```bash
-        # 克隆项目
         git clone https://github.com/happy-momo/EASY-Knowledge-Graph-Builder.git
         cd EASY-Knowledge-Graph-Builder
-
-        # 启动 Docker
         docker-compose up -d
-
-        # 访问应用
         # KG Builder: http://localhost:8501
         # Neo4j Browser: http://localhost:7474
         ```
+        默认：用户名 `neo4j`，密码 `password123`
         """)
