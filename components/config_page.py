@@ -1,7 +1,7 @@
 """
 配置页面组件（重构版 - 专业版）
 
-使用标准化LLM配置，支持任意厂商模型。
+使用标准化 LLM 配置，支持任意厂商模型。
 高对比度配色，清晰视觉层次。
 """
 
@@ -11,7 +11,8 @@ from typing import Dict, Tuple, List
 
 from utils.llm_config import (
     LLMConfig, get_preset_configs, create_llm_config_from_preset,
-    validate_llm_config, get_api_key_from_env, test_llm_connection
+    validate_llm_config, get_api_key_from_env, test_llm_connection,
+    get_required_package
 )
 from utils.neo4j_manager import Neo4jManager
 from config.app_config import DEFAULT_CONFIG, HELP_TEXTS
@@ -38,8 +39,8 @@ def render_config_section() -> Dict:
 
 
 def render_llm_config_v2() -> Dict:
-    """渲染标准化LLM配置（专业版）"""
-    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">LLM模型配置</h4>', unsafe_allow_html=True)
+    """渲染标准化 LLM 配置（专业版）"""
+    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">LLM 模型配置</h4>', unsafe_allow_html=True)
 
     config_mode = st.radio(
         "配置方式",
@@ -75,21 +76,28 @@ def render_preset_config() -> Dict:
         "选择模型",
         options=preset_names,
         index=default_idx,
-        help="选择预设的LLM模型配置"
+        help="选择预设的 LLM 模型配置"
     )
 
     selected_key = preset_keys[preset_names.index(selected_name)]
     preset = presets[selected_key]
+    provider = preset['provider']
+
+    # 获取所需包名
+    required_package = get_required_package(provider)
 
     preset_html = (
         f'<div class="card" style="padding: 1rem; margin: 0.75rem 0;">'
         f'<div style="color: var(--text-primary); font-size: 0.9rem;">{preset["description"]}</div>'
-        f'<div style="color: var(--text-primary); font-size: 0.8rem; margin-top: 0.5rem;">提供商: {preset["provider"]} | 模型: {preset["model_name"]}</div>'
+        f'<div style="color: var(--text-primary); font-size: 0.8rem; margin-top: 0.5rem;">'
+        f'提供商：{preset["provider"]} | 模型：{preset["model_name"]}</div>'
+        f'<div style="color: var(--text-primary); font-size: 0.75rem; margin-top: 0.25rem;">'
+        f'所需包：<code style="background: #F3F4F6; padding: 2px 4px; border-radius: 3px;">{required_package}</code></div>'
         f'</div>'
     )
     st.markdown(preset_html, unsafe_allow_html=True)
 
-    api_key = render_api_key_input(preset['provider'])
+    api_key = render_api_key_input(provider)
 
     try:
         llm_config = create_llm_config_from_preset(selected_key, api_key)
@@ -101,19 +109,19 @@ def render_preset_config() -> Dict:
 
 def render_custom_config() -> Dict:
     """渲染自定义配置（专业版）"""
-    st.markdown('<p style="color: var(--text-primary); font-weight: 600; margin: 0.5rem 0;">自定义API配置</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color: var(--text-primary); font-weight: 600; margin: 0.5rem 0;">自定义 API 配置</p>', unsafe_allow_html=True)
 
     api_endpoint = st.text_input(
-        "API端点",
+        "API 端点",
         placeholder="https://api.example.com/v1/",
-        help="输入兼容OpenAI API的端点地址"
+        help="输入兼容 OpenAI API 的端点地址"
     )
 
     api_key = st.text_input(
         "API Key",
         type="password",
-        placeholder="输入API Key",
-        help="输入API Key"
+        placeholder="输入 API Key",
+        help="输入 API Key"
     )
 
     model_name = st.text_input(
@@ -135,7 +143,7 @@ def render_custom_config() -> Dict:
             )
         with col2:
             max_tokens = st.number_input(
-                "最大Token数",
+                "最大 Token 数",
                 min_value=256,
                 max_value=4096,
                 value=2048,
@@ -173,7 +181,7 @@ def render_custom_config() -> Dict:
 
 
 def render_api_key_input(provider: str) -> str:
-    """渲染API Key输入（专业版）"""
+    """渲染 API Key 输入（专业版）"""
     env_key = get_api_key_from_env(provider)
 
     if env_key:
@@ -181,7 +189,7 @@ def render_api_key_input(provider: str) -> str:
             '<div style="background-color: #D1FAE5; border: 1px solid #6EE7B7; '
             'border-radius: 8px; padding: 10px 16px; margin: 8px 0; '
             'color: #065F46; font-size: 0.9rem;">'
-            f'已从环境变量检测到API Key ({env_key[:8]}...)'
+            f'已从环境变量检测到 API Key ({env_key[:8]}...)'
             '</div>',
             unsafe_allow_html=True
         )
@@ -198,8 +206,8 @@ def render_api_key_input(provider: str) -> str:
 
 
 def render_neo4j_config() -> Dict:
-    """渲染Neo4j配置（专业版）- 从首页快速连接预填"""
-    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">Neo4j数据库配置</h4>', unsafe_allow_html=True)
+    """渲染 Neo4j 配置（专业版）- 从首页快速连接预填"""
+    st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">Neo4j 数据库配置</h4>', unsafe_allow_html=True)
 
     # 从首页快速连接预填
     quick_cfg = st.session_state.get('quick_neo4j_config', {})
@@ -232,7 +240,7 @@ def render_neo4j_config() -> Dict:
         "密码",
         type="password",
         value=default_pwd,
-        placeholder="输入Neo4j密码",
+        placeholder="输入 Neo4j 密码",
         help=HELP_TEXTS.get("neo4j_password", "")
     )
 
@@ -291,14 +299,14 @@ def validate_config(config: Dict) -> Tuple[bool, List[str]]:
 
     llm = config.get('llm', {})
     if not llm.get('api_endpoint'):
-        missing.append("API端点")
+        missing.append("API 端点")
     if not llm.get('api_key'):
         missing.append("API Key")
     if not llm.get('model_name'):
         missing.append("模型名称")
 
     if not config.get('neo4j', {}).get('password'):
-        missing.append("Neo4j密码")
+        missing.append("Neo4j 密码")
 
     return len(missing) == 0, missing
 
@@ -328,10 +336,10 @@ def render_config_summary(config: Dict):
 
 
 def save_config_to_state(config: Dict):
-    """保存配置到session_state"""
+    """保存配置到 session_state"""
     st.session_state['config'] = config
 
 
 def load_config_from_state() -> Dict:
-    """从session_state加载配置"""
+    """从 session_state 加载配置"""
     return st.session_state.get('config', {})

@@ -1,7 +1,7 @@
 """
-核心LLM抽取模块（重构版）
+核心 LLM 抽取模块（重构版）
 
-使用标准化LLM配置，支持任意厂商模型。
+使用标准化 LLM 配置，支持任意厂商模型。
 """
 
 import json
@@ -10,7 +10,7 @@ import os
 from typing import List, Dict, Optional, Tuple
 from pydantic import BaseModel, Field
 
-from utils.llm_config import LLMConfig
+from utils.llm_config import LLMConfig, create_chat_model
 
 
 class KnowledgeGraphTriple(BaseModel):
@@ -35,14 +35,13 @@ def extract_triples(text: str, ontology: str, config: LLMConfig) -> List[Knowled
 
     Args:
         text: 待处理的文本
-        ontology: YAML格式的本体定义
-        config: LLM配置
+        ontology: YAML 格式的本体定义
+        config: LLM 配置
 
     Returns:
         三元组列表
     """
     try:
-        from langchain_openai import ChatOpenAI
         from langchain.prompts import PromptTemplate
         from langchain.output_parsers import PydanticOutputParser
 
@@ -66,15 +65,8 @@ def extract_triples(text: str, ontology: str, config: LLMConfig) -> List[Knowled
         for entity in ontology_dict.get('entities', []):
             entity_properties[entity['name']] = entity.get('properties', [])
 
-        # 初始化LLM
-        llm = ChatOpenAI(
-            model=config.model_name,
-            openai_api_key=config.api_key,
-            openai_api_base=config.api_endpoint,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            timeout=config.timeout
-        )
+        # 动态创建 LLM
+        llm = create_chat_model(config)
 
         # 构建提示词
         prompt = _build_extraction_prompt(
@@ -85,7 +77,7 @@ def extract_triples(text: str, ontology: str, config: LLMConfig) -> List[Knowled
             text
         )
 
-        # 调用LLM
+        # 调用 LLM
         response = llm.invoke(prompt)
 
         # 解析响应
@@ -97,7 +89,7 @@ def extract_triples(text: str, ontology: str, config: LLMConfig) -> List[Knowled
         return filtered_triples
 
     except Exception as e:
-        raise ExtractionError(f"抽取失败: {e}")
+        raise ExtractionError(f"抽取失败：{e}")
 
 
 def _build_extraction_prompt(entity_types: List[str], relation_types: List[str],
@@ -136,7 +128,7 @@ def _build_extraction_prompt(entity_types: List[str], relation_types: List[str],
 5. 禁止推测和创造信息
 6. 如果信息不符合约束，返回空列表
 
-请以JSON格式返回结果：
+请以 JSON 格式返回结果：
 {{
   "triples": [
     {{
@@ -153,16 +145,16 @@ def _build_extraction_prompt(entity_types: List[str], relation_types: List[str],
 
 
 def _parse_llm_response(response_text: str) -> List[KnowledgeGraphTriple]:
-    """解析LLM响应"""
+    """解析 LLM 响应"""
     try:
-        # 提取JSON
+        # 提取 JSON
         json_match = re.search(r'\{[\s\S]*\}', response_text)
         if not json_match:
             return []
 
         json_str = json_match.group(0)
 
-        # 清理JSON
+        # 清理 JSON
         json_str = _clean_json_string(json_str)
 
         # 解析
@@ -190,7 +182,7 @@ def _parse_llm_response(response_text: str) -> List[KnowledgeGraphTriple]:
 
 
 def _clean_json_string(json_str: str) -> str:
-    """清理JSON字符串"""
+    """清理 JSON 字符串"""
     # 移除注释
     json_str = re.sub(r'//[^\n]*', '', json_str)
     json_str = re.sub(r'/\*[^*]*\*+(?:[^/*][^*]*\*+)*/', '', json_str)
