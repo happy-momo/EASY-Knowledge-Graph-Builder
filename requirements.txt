@@ -3,8 +3,11 @@
 streamlit==1.32.0
 
 # 大语言模型相关
-langchain==0.1.15
-langchain-openai==0.0.8
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-openai>=0.0.8
+langchain-anthropic>=0.1.0
+langchain-google-genai>=0.0.5
 
 # 文档处理
 python-docx==0.8.11

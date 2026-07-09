@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import copy
 from html import escape as html_escape
 
-from utils.llm_extractor import KnowledgeGraphTriple
+from utils.extractor import KnowledgeGraphTriple
 
 
 @dataclass

@@ -1,7 +1,7 @@
 """
-配置页面组件（简化版）
+配置页面组件（双路由版）
 
-LLM 配置简化为：厂商选择、API 端点、API Key、模型名称
+LLM 配置流程：厂家类型选择 → 具体厂商 → API 端点/Key/模型名称
 """
 
 import streamlit as st
@@ -9,36 +9,16 @@ from typing import Dict, Tuple, List
 
 from utils.llm_config import (
     LLMConfig, get_preset_configs, get_api_key_from_env,
-    test_llm_connection, get_required_package, PROVIDER_DEFAULTS
+    test_llm_connection, get_required_package, get_vendor_info,
+    get_default_base_url, get_vendor_type_label,
+    OPENAI_COMPATIBLE_VENDORS, NATIVE_LANGCHAIN_VENDORS,
+    get_all_vendor_options
 )
 from utils.neo4j_manager import Neo4jManager
 from config.app_config import DEFAULT_CONFIG, HELP_TEXTS
 
 
-# 厂商显示名称映射
-PROVIDER_DISPLAY_NAMES = {
-    "zhipu": "智谱 AI",
-    "openai": "OpenAI",
-    "anthropic": "Anthropic (Claude)",
-    "google": "Google (Gemini)",
-    "alibaba": "阿里云 (通义千问)",
-    "deepseek": "深度求索 (DeepSeek)",
-    "moonshot": "月之暗面 (Kimi)",
-    "custom": "自定义",
-}
-
-# 厂商模型示例
-PROVIDER_MODEL_EXAMPLES = {
-    "zhipu": "glm-4, glm-4-flash",
-    "openai": "gpt-4, gpt-4o, gpt-3.5-turbo",
-    "anthropic": "claude-3-opus-20240229, claude-3-sonnet-20240229",
-    "google": "gemini-pro, gemini-1.5-pro",
-    "alibaba": "qwen-turbo, qwen-plus",
-    "deepseek": "deepseek-chat, deepseek-coder",
-    "moonshot": "moonshot-v1-8k, moonshot-v1-32k",
-    "custom": "任意模型名称",
-}
-
+# ==================== LLM 配置 UI ====================
 
 def render_config_section() -> Dict:
     """渲染配置界面"""
@@ -58,52 +38,99 @@ def render_config_section() -> Dict:
 
 
 def render_llm_config_simple() -> Dict:
-    """渲染简化版 LLM 配置界面"""
+    """渲染双路由 LLM 配置界面"""
     st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">LLM 模型配置</h4>', unsafe_allow_html=True)
 
-    # 厂商选择
-    provider_options = list(PROVIDER_DISPLAY_NAMES.keys())
-    provider_display_options = [PROVIDER_DISPLAY_NAMES[p] for p in provider_options]
+    # ---- Step 1: 选择厂家类型 ----
+    vendor_type_options = {
+        "openai_compatible": "🔌 OpenAI 兼容接口（智谱/阿里/DeepSeek/Kimi/自定义）",
+        "native_langchain": "🧩 原生 LangChain（OpenAI/Anthropic/Gemini）",
+    }
 
-    selected_display = st.selectbox(
-        "选择模型厂商",
-        options=provider_display_options,
-        index=0,
-        help="选择 LLM 模型提供商"
+    # 从 session_state 恢复或默认
+    if 'llm_vendor_type' not in st.session_state:
+        st.session_state.llm_vendor_type = "openai_compatible"
+
+    selected_vendor_type_display = st.radio(
+        "厂家类型",
+        options=list(vendor_type_options.keys()),
+        format_func=lambda x: vendor_type_options[x],
+        index=list(vendor_type_options.keys()).index(st.session_state.llm_vendor_type),
+        horizontal=True,
+        help="选择接口类型决定模型初始化方式"
     )
-    provider = provider_options[provider_display_options.index(selected_display)]
+    vendor_type = selected_vendor_type_display
+    st.session_state.llm_vendor_type = vendor_type
 
-    # 获取厂商默认配置
-    provider_defaults = PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["custom"])
-    default_endpoint = provider_defaults.get("api_endpoint", "")
+    # ---- Step 2: 选择具体厂商 ----
+    if vendor_type == "openai_compatible":
+        vendor_registry = OPENAI_COMPATIBLE_VENDORS
+    else:
+        vendor_registry = NATIVE_LANGCHAIN_VENDORS
 
-    # 获取所需包名
-    required_package = get_required_package(provider)
+    provider_options = list(vendor_registry.keys())
+    provider_display_options = [vendor_registry[p]["display_name"] for p in provider_options]
+
+    # 从 session_state 恢复厂商选择
+    provider_key = f"llm_provider_{vendor_type}"
+    if provider_key not in st.session_state:
+        st.session_state[provider_key] = provider_options[0]
+
+    # 确保保存的 provider 在当前类型下有效
+    saved_provider = st.session_state[provider_key]
+    if saved_provider not in provider_options:
+        saved_provider = provider_options[0]
+        st.session_state[provider_key] = saved_provider
+
+    default_provider_idx = provider_options.index(saved_provider)
+
+    selected_provider_display = st.selectbox(
+        "选择厂商",
+        options=provider_display_options,
+        index=default_provider_idx,
+        help="选择具体的 LLM 厂商"
+    )
+    provider = provider_options[provider_display_options.index(selected_provider_display)]
+    st.session_state[provider_key] = provider
+
+    # ---- 获取厂商信息 ----
+    vendor_info = vendor_registry[provider]
+    default_endpoint = vendor_info.get("base_url", "")
+    model_examples = vendor_info.get("model_examples", "")
+    required_package = get_required_package(vendor_type, provider)
 
     # 显示厂商信息卡片
+    route_label = get_vendor_type_label(vendor_type)
     st.markdown(f"""
     <div class="info-card" style="margin: 0.75rem 0; border-left-color: var(--color-primary-600);">
         <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">
-            {PROVIDER_DISPLAY_NAMES.get(provider, provider)}
+            {vendor_info['display_name']}
         </div>
         <div style="font-size: 0.85rem; color: var(--text-secondary);">
-            所需包：<code style="background: #F3F4F6; padding: 2px 4px; border-radius: 3px;">{required_package}</code>
+            接口类型：<code style="background: #F3F4F6; padding: 2px 4px; border-radius: 3px;">{route_label}</code>
+            &nbsp;|&nbsp; 所需包：<code style="background: #F3F4F6; padding: 2px 4px; border-radius: 3px;">{required_package}</code>
         </div>
         <div style="font-size: 0.8rem; color: var(--text-tertiary); margin-top: 0.25rem;">
-            示例模型：{PROVIDER_MODEL_EXAMPLES.get(provider, "")}
+            示例模型：{model_examples}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # API 端点（带默认值）
+    # ---- Step 3: API 端点 ----
+    endpoint_label = "Base URL" if vendor_type == "openai_compatible" else "API 端点"
+    endpoint_help = "OpenAI 兼容接口的 Base URL" if vendor_type == "openai_compatible" else "API 端点地址（Google Gemini 可留空）"
+
+    # Google 不需要端点
+    is_google = (vendor_type == "native_langchain" and provider == "google")
+
     api_endpoint = st.text_input(
-        "API 端点",
+        endpoint_label,
         value=default_endpoint if default_endpoint else "",
-        placeholder="https://api.example.com/v1/",
-        help=provider_defaults.get("api_endpoint", "输入 API 端点地址")
+        placeholder="https://api.example.com/v1/" if not is_google else "无需填写",
+        help=endpoint_help
     )
 
-    # API Key
+    # ---- Step 4: API Key ----
     env_key = get_api_key_from_env(provider)
     if env_key:
         st.markdown(
@@ -118,26 +145,28 @@ def render_llm_config_simple() -> Dict:
     api_key = st.text_input(
         "API Key",
         type="password",
-        placeholder=f"输入{PROVIDER_DISPLAY_NAMES.get(provider, provider)} API Key",
+        placeholder=f"输入{vendor_info['display_name']} API Key",
         value=env_key if env_key else "",
         help="支持从环境变量自动读取"
     )
 
-    # 模型名称
+    # ---- Step 5: 模型名称 ----
     model_name = st.text_input(
         "模型名称",
-        placeholder=PROVIDER_MODEL_EXAMPLES.get(provider, "输入模型名称"),
+        placeholder=model_examples,
         help="输入要使用的模型名称"
     )
 
-    # 测试连接按钮
-    if api_endpoint and api_key and model_name:
+    # ---- Step 6: 测试连接 ----
+    can_test = bool(api_key and model_name and (api_endpoint or is_google))
+    if can_test:
         if st.button("测试连接", key="test_llm", type="secondary"):
             with st.spinner("测试中..."):
                 config = LLMConfig(
-                    api_endpoint=api_endpoint,
+                    api_endpoint=api_endpoint if api_endpoint else "",
                     api_key=api_key,
                     model_name=model_name,
+                    vendor_type=vendor_type,
                     provider=provider
                 )
                 success, message = test_llm_connection(config)
@@ -146,13 +175,14 @@ def render_llm_config_simple() -> Dict:
                 else:
                     st.error(message)
 
-    # 返回配置
-    if api_endpoint and api_key and model_name:
+    # ---- 返回配置 ----
+    if api_key and model_name and (api_endpoint or is_google):
         try:
             llm_config = LLMConfig(
-                api_endpoint=api_endpoint,
+                api_endpoint=api_endpoint if api_endpoint else "",
                 api_key=api_key,
                 model_name=model_name,
+                vendor_type=vendor_type,
                 provider=provider
             )
             return llm_config.to_dict()
@@ -161,6 +191,8 @@ def render_llm_config_simple() -> Dict:
 
     return {}
 
+
+# ==================== Neo4j 配置 UI ====================
 
 def render_neo4j_config() -> Dict:
     """渲染 Neo4j 配置"""
@@ -206,6 +238,8 @@ def render_neo4j_config() -> Dict:
     }
 
 
+# ==================== 审核模式配置 ====================
+
 def render_review_mode_config() -> str:
     """渲染审核模式配置"""
     st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">审核设置</h4>', unsafe_allow_html=True)
@@ -233,12 +267,18 @@ def render_review_mode_config() -> str:
     return review_mode
 
 
+# ==================== 验证与摘要 ====================
+
 def validate_config(config: Dict) -> Tuple[bool, List[str]]:
     """验证配置是否完整"""
     missing = []
 
     llm = config.get('llm', {})
-    if not llm.get('api_endpoint'):
+    vendor_type = llm.get('vendor_type', 'openai_compatible')
+    provider = llm.get('provider', 'custom')
+    is_google = (vendor_type == "native_langchain" and provider == "google")
+
+    if not is_google and not llm.get('api_endpoint'):
         missing.append("API 端点")
     if not llm.get('api_key'):
         missing.append("API Key")
@@ -258,13 +298,17 @@ def render_config_summary(config: Dict):
     llm = config.get('llm', {})
     model_name = llm.get('model_name', '未设置')
     provider = llm.get('provider', '未设置')
+    vendor_type = llm.get('vendor_type', '未设置')
     api_key_display = (llm.get('api_key', '未设置')[:8] + '...') if llm.get('api_key') else '未设置'
     neo4j_uri = config.get('neo4j', {}).get('uri', '未设置')
     review_mode = config.get('review_mode', '未设置')
 
+    route_label = get_vendor_type_label(vendor_type) if vendor_type != '未设置' else '未设置'
+
     summary_html = (
         '<div class="info-panel">'
         f'<div class="info-panel-row"><span class="info-panel-label">LLM Model</span><span class="info-panel-value">{model_name}</span></div>'
+        f'<div class="info-panel-row"><span class="info-panel-label">接口类型</span><span class="info-panel-value">{route_label}</span></div>'
         f'<div class="info-panel-row"><span class="info-panel-label">Provider</span><span class="info-panel-value">{provider}</span></div>'
         f'<div class="info-panel-row"><span class="info-panel-label">API Key</span><span class="info-panel-value">{api_key_display}</span></div>'
         f'<div class="info-panel-row"><span class="info-panel-label">Neo4j URI</span><span class="info-panel-value">{neo4j_uri}</span></div>'

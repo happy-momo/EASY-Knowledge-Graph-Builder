@@ -373,6 +373,7 @@ def start_extraction_process(resume: bool = False):
         api_endpoint=llm_config_dict['api_endpoint'],
         api_key=llm_config_dict['api_key'],
         model_name=llm_config_dict['model_name'],
+        vendor_type=llm_config_dict.get('vendor_type', 'openai_compatible'),
         provider=llm_config_dict.get('provider', 'custom'),
         temperature=llm_config_dict.get('temperature', 0.1),
         max_tokens=llm_config_dict.get('max_tokens', 2048)

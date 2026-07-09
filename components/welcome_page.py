@@ -1,9 +1,16 @@
 """
-欢迎引导页 - 集成快速连接与环境检测
+欢迎引导页 - 集成快速连接与环境检测（双路由版）
 """
 
 import streamlit as st
 from html import escape as html_escape
+
+from utils.llm_config import (
+    LLMConfig, test_llm_connection, get_api_key_from_env,
+    get_vendor_info, get_default_base_url, get_vendor_type_label,
+    get_required_package,
+    OPENAI_COMPATIBLE_VENDORS, NATIVE_LANGCHAIN_VENDORS,
+)
 
 # 统一色彩体系中的 SVG 图标
 _ICONS = {
@@ -18,36 +25,11 @@ _ICONS = {
     "zap": '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
 }
 
-# 厂商显示名称映射
-PROVIDER_DISPLAY_NAMES = {
-    "zhipu": "智谱 AI",
-    "openai": "OpenAI",
-    "anthropic": "Anthropic (Claude)",
-    "google": "Google (Gemini)",
-    "alibaba": "阿里云 (通义千问)",
-    "deepseek": "深度求索 (DeepSeek)",
-    "moonshot": "月之暗面 (Kimi)",
-    "custom": "自定义",
-}
-
-# 厂商默认配置
-PROVIDER_DEFAULTS = {
-    "zhipu": {"api_endpoint": "https://open.bigmodel.cn/api/paas/v4/", "model_example": "glm-4, glm-4-flash"},
-    "openai": {"api_endpoint": "https://api.openai.com/v1/", "model_example": "gpt-4, gpt-4o, gpt-3.5-turbo"},
-    "anthropic": {"api_endpoint": "https://api.anthropic.com/", "model_example": "claude-3-opus-20240229, claude-3-sonnet-20240229"},
-    "google": {"api_endpoint": "", "model_example": "gemini-pro, gemini-1.5-pro"},
-    "alibaba": {"api_endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/", "model_example": "qwen-turbo, qwen-plus"},
-    "deepseek": {"api_endpoint": "https://api.deepseek.com/", "model_example": "deepseek-chat, deepseek-coder"},
-    "moonshot": {"api_endpoint": "https://api.moonshot.cn/v1/", "model_example": "moonshot-v1-8k, moonshot-v1-32k"},
-    "custom": {"api_endpoint": "", "model_example": "任意模型名称"},
-}
-
 
 def render_welcome_page():
     """渲染欢迎页 - 环境检测 + 快速连接"""
 
     from utils.env_checker import check_all_api_keys, get_environment_status
-    from utils.llm_config import LLMConfig, test_llm_connection, get_api_key_from_env
     from utils.neo4j_manager import Neo4jManager
     from config.app_config import DEFAULT_CONFIG
 
@@ -94,7 +76,7 @@ def render_welcome_page():
 
     # -- LLM 快速连接 --
     with col_llm:
-        _render_llm_quick_connect_simple(api_keys_status, get_api_key_from_env, LLMConfig, test_llm_connection)
+        _render_llm_quick_connect()
 
     # -- Neo4j 快速连接 --
     with col_neo4j:
@@ -148,52 +130,86 @@ def render_welcome_page():
     return None
 
 
-def _render_llm_quick_connect_simple(api_keys_status, get_api_key_fn, LLMConfigCls, test_llm_fn):
-    """渲染 LLM 快速连接面板 - 简化版（厂商选择 + API 端点 + API Key + 模型名称）"""
+def _render_llm_quick_connect():
+    """渲染 LLM 快速连接面板 - 双路由版"""
     st.markdown(
         f'<div class="quick-connect-header">{_ICONS["zap"]} LLM 模型</div>',
         unsafe_allow_html=True
     )
 
-    # 厂商选择
-    provider_options = list(PROVIDER_DISPLAY_NAMES.keys())
-    provider_display_options = [PROVIDER_DISPLAY_NAMES[p] for p in provider_options]
+    # ---- Step 1: 厂家类型选择 ----
+    vendor_type_options = {
+        "openai_compatible": "🔌 OpenAI 兼容",
+        "native_langchain": "🧩 原生 LangChain",
+    }
+
+    # 自动检测：如果有环境变量，优先选对应类型
+    default_vendor_type = "openai_compatible"
+    for provider in NATIVE_LANGCHAIN_VENDORS:
+        if get_api_key_from_env(provider):
+            default_vendor_type = "native_langchain"
+            break
+    if default_vendor_type == "openai_compatible":
+        for provider in OPENAI_COMPATIBLE_VENDORS:
+            if get_api_key_from_env(provider):
+                default_vendor_type = "openai_compatible"
+                break
+
+    selected_vendor_type = st.selectbox(
+        "厂家类型",
+        options=list(vendor_type_options.keys()),
+        format_func=lambda x: vendor_type_options[x],
+        index=list(vendor_type_options.keys()).index(default_vendor_type),
+        key="quick_vendor_type",
+        label_visibility="collapsed"
+    )
+    vendor_type = selected_vendor_type
+
+    # ---- Step 2: 具体厂商选择 ----
+    if vendor_type == "openai_compatible":
+        vendor_registry = OPENAI_COMPATIBLE_VENDORS
+    else:
+        vendor_registry = NATIVE_LANGCHAIN_VENDORS
+
+    provider_options = list(vendor_registry.keys())
+    provider_display_options = [vendor_registry[p]["display_name"] for p in provider_options]
 
     # 自动选中已检测到 API Key 的厂商
-    default_idx = 0
+    default_provider_idx = 0
     for i, provider in enumerate(provider_options):
-        if get_api_key_fn(provider):
-            default_idx = i
+        if get_api_key_from_env(provider):
+            default_provider_idx = i
             break
 
-    selected_display = st.selectbox(
-        "选择模型厂商",
+    selected_provider_display = st.selectbox(
+        "选择厂商",
         options=provider_display_options,
-        index=default_idx,
+        index=default_provider_idx,
         key="quick_llm_provider",
         label_visibility="collapsed"
     )
-    provider = provider_options[provider_display_options.index(selected_display)]
+    provider = provider_options[provider_display_options.index(selected_provider_display)]
 
-    # 获取厂商默认配置
-    provider_defaults = PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["custom"])
-    default_endpoint = provider_defaults.get("api_endpoint", "")
-    model_example = provider_defaults.get("model_example", "")
+    # ---- 获取厂商信息 ----
+    vendor_info = vendor_registry[provider]
+    default_endpoint = vendor_info.get("base_url", "")
+    model_example = vendor_info.get("model_examples", "")
+    is_google = (vendor_type == "native_langchain" and provider == "google")
 
     # 显示厂商信息
     st.caption(f"示例模型：{model_example}")
 
-    # API 端点
+    # ---- Step 3: API 端点 ----
     api_endpoint = st.text_input(
         "API 端点",
         value=default_endpoint,
-        placeholder="https://api.example.com/v1/",
+        placeholder="https://api.example.com/v1/" if not is_google else "无需填写",
         key="quick_llm_endpoint",
         label_visibility="collapsed"
     )
 
-    # API Key
-    env_key = get_api_key_fn(provider)
+    # ---- Step 4: API Key ----
+    env_key = get_api_key_from_env(provider)
     if env_key:
         st.markdown(
             '<div style="background: var(--color-success-bg); border: 1px solid var(--color-success); '
@@ -212,7 +228,7 @@ def _render_llm_quick_connect_simple(api_keys_status, get_api_key_fn, LLMConfigC
             label_visibility="collapsed"
         )
 
-    # 模型名称
+    # ---- Step 5: 模型名称 ----
     model_name = st.text_input(
         "模型名称",
         placeholder=model_example,
@@ -220,11 +236,11 @@ def _render_llm_quick_connect_simple(api_keys_status, get_api_key_fn, LLMConfigC
         label_visibility="collapsed"
     )
 
-    # 测试按钮 - 始终显示
+    # ---- Step 6: 测试按钮 ----
     col_test, col_empty = st.columns([3, 1])
     with col_test:
         if st.button("🔌 测试 LLM 连接", key="quick_test_llm", use_container_width=True):
-            if not api_endpoint:
+            if not api_endpoint and not is_google:
                 st.warning("请输入 API 端点")
             elif not api_key:
                 st.warning("请输入 API Key")
@@ -233,13 +249,14 @@ def _render_llm_quick_connect_simple(api_keys_status, get_api_key_fn, LLMConfigC
             else:
                 with st.spinner("正在测试连接..."):
                     try:
-                        config = LLMConfigCls(
-                            api_endpoint=api_endpoint,
+                        config = LLMConfig(
+                            api_endpoint=api_endpoint if api_endpoint else "",
                             api_key=api_key,
                             model_name=model_name,
+                            vendor_type=vendor_type,
                             provider=provider
                         )
-                        success, message = test_llm_fn(config)
+                        success, message = test_llm_connection(config)
                         if success:
                             st.success("✅ 连接成功！")
                         else:
@@ -248,12 +265,13 @@ def _render_llm_quick_connect_simple(api_keys_status, get_api_key_fn, LLMConfigC
                         st.error(f"❌ 配置错误：{str(e)[:100]}")
 
     # 保存到 session_state
-    if api_endpoint and api_key and model_name:
+    if api_key and model_name and (api_endpoint or is_google):
         try:
-            config = LLMConfigCls(
-                api_endpoint=api_endpoint,
+            config = LLMConfig(
+                api_endpoint=api_endpoint if api_endpoint else "",
                 api_key=api_key,
                 model_name=model_name,
+                vendor_type=vendor_type,
                 provider=provider
             )
             st.session_state['quick_llm_config'] = config.to_dict()
