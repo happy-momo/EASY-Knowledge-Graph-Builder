@@ -220,24 +220,32 @@ def _render_llm_quick_connect_simple(api_keys_status, get_api_key_fn, LLMConfigC
         label_visibility="collapsed"
     )
 
-    # 测试按钮
-    if api_endpoint and api_key and model_name:
-        if st.button("测试 LLM 连接", key="quick_test_llm", use_container_width=True):
-            with st.spinner("正在测试..."):
-                try:
-                    config = LLMConfigCls(
-                        api_endpoint=api_endpoint,
-                        api_key=api_key,
-                        model_name=model_name,
-                        provider=provider
-                    )
-                    success, message = test_llm_fn(config)
-                    if success:
-                        st.success("连接成功")
-                    else:
-                        st.error(f"连接失败：{message[:80]}")
-                except Exception as e:
-                    st.error(f"配置错误：{str(e)[:80]}")
+    # 测试按钮 - 始终显示
+    col_test, col_empty = st.columns([3, 1])
+    with col_test:
+        if st.button("🔌 测试 LLM 连接", key="quick_test_llm", use_container_width=True):
+            if not api_endpoint:
+                st.warning("请输入 API 端点")
+            elif not api_key:
+                st.warning("请输入 API Key")
+            elif not model_name:
+                st.warning("请输入模型名称")
+            else:
+                with st.spinner("正在测试连接..."):
+                    try:
+                        config = LLMConfigCls(
+                            api_endpoint=api_endpoint,
+                            api_key=api_key,
+                            model_name=model_name,
+                            provider=provider
+                        )
+                        success, message = test_llm_fn(config)
+                        if success:
+                            st.success("✅ 连接成功！")
+                        else:
+                            st.error(f"❌ 连接失败：{message[:100]}")
+                    except Exception as e:
+                        st.error(f"❌ 配置错误：{str(e)[:100]}")
 
     # 保存到 session_state
     if api_endpoint and api_key and model_name:
