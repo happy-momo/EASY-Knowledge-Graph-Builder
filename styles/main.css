@@ -956,3 +956,51 @@ h4 {
     background: var(--color-primary-200);
     color: var(--color-primary-700);
 }
+
+/* ==================== 强制覆盖 Streamlit 主题（跨浏览器一致性） ====================
+   Streamlit 会将主题 CSS 以 !important 注入到 body/stApp，
+   必须用更具体的选择器 + !important 覆盖，防止不同浏览器渲染差异。 */
+
+/* 背景色强制覆盖 */
+html, body, .main, .stApp {
+    background-color: var(--bg-primary) !important;
+}
+
+/* 文字颜色强制覆盖 */
+.stApp,
+.stMarkdown,
+.stMarkdown p,
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+.stMarkdown label,
+.stTextInput label,
+.stNumberInput label,
+.stSelectbox label,
+.stRadio label,
+.stTextArea label,
+.stCheckbox label,
+[data-testid="stText"] label,
+[data-testid="stMetric"] label,
+.css-1r6slb0, .css-1lcb5hc, .css-17vbkjt {
+    color: var(--text-primary) !important;
+}
+
+/* 侧边栏强制覆盖（已折叠但仍可能有残留样式） */
+[data-testid="stSidebar"] {
+    background-color: var(--bg-secondary) !important;
+}
+
+/* Streamlit 原生组件背景色覆盖 */
+.stEmotionCache {
+    background-color: transparent !important;
+}
+
+/* 信息/成功/警告/错误框强制文字颜色 */
+.stAlert,
+.stAlert > div {
+    color: var(--text-primary) !important;
+}
+
+/* Streamlit 卡片/容器背景色 */
+.css-1lcb5hc .stMarkdown {
+    background-color: transparent !important;
+}
