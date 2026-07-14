@@ -19,7 +19,8 @@ from .step_navigation import (
     render_progress_bar,
     render_navigation_buttons,
     get_step_name,
-    get_step_index
+    get_step_index,
+    handle_step_navigation
 )
 
 from .welcome_page import (
@@ -93,6 +94,7 @@ __all__ = [
     "render_navigation_buttons",
     "get_step_name",
     "get_step_index",
+    "handle_step_navigation",
 
     # 欢迎页
     "render_welcome_page",

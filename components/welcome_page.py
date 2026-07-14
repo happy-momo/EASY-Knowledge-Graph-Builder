@@ -274,7 +274,13 @@ def _render_llm_quick_connect():
                 vendor_type=vendor_type,
                 provider=provider
             )
-            st.session_state['quick_llm_config'] = config.to_dict()
+            config_dict = config.to_dict()
+            st.session_state['quick_llm_config'] = config_dict
+
+            # 同步到主配置，以便配置页可以读取缓存
+            if st.session_state.get('config') is None:
+                st.session_state['config'] = {}
+            st.session_state['config']['llm'] = config_dict
         except ValueError:
             pass
 
@@ -323,11 +329,17 @@ def _render_neo4j_quick_connect(DEFAULT_CONFIG, Neo4jManager):
                 manager.close()
 
         # 保存到 session_state
-        st.session_state['quick_neo4j_config'] = {
+        neo4j_config = {
             "uri": neo4j_uri,
             "user": neo4j_user,
             "password": neo4j_password
         }
+        st.session_state['quick_neo4j_config'] = neo4j_config
+
+        # 同步到主配置，以便配置页可以读取缓存
+        if st.session_state.get('config') is None:
+            st.session_state['config'] = {}
+        st.session_state['config']['neo4j'] = neo4j_config
     else:
         st.caption("输入密码后可测试连接")
 

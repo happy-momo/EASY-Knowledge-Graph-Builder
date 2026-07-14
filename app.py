@@ -41,6 +41,7 @@ from components import (
     render_navigation_buttons,
     get_step_name,
     get_step_index,
+    handle_step_navigation,
     render_welcome_page,
     render_help_section,
     render_docker_help,
@@ -154,6 +155,9 @@ def main():
     init_session_state()
     load_persisted_state()
 
+    # 处理步骤导航跳转请求（来自进度条点击）
+    handle_step_navigation()
+
     # 检查是否需要显示恢复提示
     if show_resume_prompt():
         return
@@ -195,6 +199,10 @@ def render_welcome_step():
 
     # 处理开始动作
     if action == "start":
+        # 将首页快速连接的配置持久化，以便配置页可以读取缓存
+        if st.session_state.get('config'):
+            save_persisted_state()
+        st.session_state.completed_steps.append(0)
         st.session_state.current_step = 1
         st.rerun()
 
@@ -309,7 +317,10 @@ def render_process_step():
         col1, col2 = st.columns(2)
         with col1:
             if st.button("继续处理", type="primary"):
-                start_extraction_process(resume=True)
+                # 只设置状态，让下一轮渲染进入处理流程
+                st.session_state.is_processing = True
+                st.session_state._resume_mode = True
+                st.rerun()
         with col2:
             if st.button("重新开始"):
                 progress_tracker.reset()
@@ -318,40 +329,25 @@ def render_process_step():
     elif not st.session_state.is_processing:
         # 开始处理按钮
         if st.button("▶ 开始知识抽取", type="primary", use_container_width=True):
-            start_extraction_process()
-
-    else:
-        # 显示处理进度
-        progress = progress_tracker.get_progress()
-        render_processing_page(progress)
-
-        # 如果处理完成
-        if progress.status == 'completed':
-            st.session_state.is_processing = False
-            st.session_state.processing_result = progress.get_statistics()
-
-            # 根据审核模式决定下一步
-            if st.session_state.config.get('review_mode') == 'manual':
-                st.session_state.current_step = 5
-            else:
-                st.session_state.completed_steps.append(5)
-                st.session_state.current_step = 6
-
+            # 只设置状态并刷新，不在按钮回调中执行耗时操作
+            st.session_state.is_processing = True
+            st.session_state._resume_mode = False
             st.rerun()
 
-        # 如果处理出错
-        elif progress.status == 'error':
-            st.session_state.is_processing = False
-            st.error("处理过程中发生错误")
+    else:
+        # 执行抽取处理（使用 st.status 显示实时进度）
+        resume = st.session_state.get('_resume_mode', False)
+        start_extraction_process(resume=resume)
 
 
 def start_extraction_process(resume: bool = False):
-    """开始抽取处理"""
+    """开始抽取处理（使用 st.status 实时显示进度）"""
     # 获取所有分块
     chunks = get_all_chunks_for_processing()
 
     if not chunks:
         st.error("没有可处理的文本块")
+        st.session_state.is_processing = False
         return
 
     # 初始化进度
@@ -362,102 +358,162 @@ def start_extraction_process(resume: bool = False):
             total_chunks=len(chunks)
         )
 
-    st.session_state.is_processing = True
-
     # 获取配置
     config = st.session_state.config
+    if not config or not config.get('llm'):
+        st.error("配置信息缺失，请返回配置页重新设置")
+        st.session_state.is_processing = False
+        return
+
     llm_config_dict = config['llm']
 
     # 创建LLM配置
-    llm_config = LLMConfig(
-        api_endpoint=llm_config_dict['api_endpoint'],
-        api_key=llm_config_dict['api_key'],
-        model_name=llm_config_dict['model_name'],
-        vendor_type=llm_config_dict.get('vendor_type', 'openai_compatible'),
-        provider=llm_config_dict.get('provider', 'custom'),
-        temperature=llm_config_dict.get('temperature', 0.1),
-        max_tokens=llm_config_dict.get('max_tokens', 2048)
-    )
+    try:
+        llm_config = LLMConfig(
+            api_endpoint=llm_config_dict['api_endpoint'],
+            api_key=llm_config_dict['api_key'],
+            model_name=llm_config_dict['model_name'],
+            vendor_type=llm_config_dict.get('vendor_type', 'openai_compatible'),
+            provider=llm_config_dict.get('provider', 'custom'),
+            temperature=llm_config_dict.get('temperature', 0.1),
+            max_tokens=llm_config_dict.get('max_tokens', 2048)
+        )
+    except (ValueError, KeyError) as e:
+        st.error(f"LLM 配置无效: {e}")
+        st.session_state.is_processing = False
+        return
 
     # 初始化Neo4j连接（自动审核模式）
     neo4j_manager = None
-    if config['review_mode'] == 'auto':
-        neo4j_config = config['neo4j']
+    if config.get('review_mode') == 'auto':
+        neo4j_config = config.get('neo4j', {})
+        if not neo4j_config.get('password'):
+            st.error("Neo4j 密码未配置")
+            st.session_state.is_processing = False
+            return
         neo4j_manager = Neo4jManager(
             neo4j_config['uri'],
             neo4j_config['user'],
             neo4j_config['password']
         )
 
-    try:
-        # 处理每个分块
-        pending_chunks = chunks if not resume else [
-            c for c in chunks
-            if c[2] in progress_tracker.get_pending_chunks()
-        ]
+    # 使用 st.status 显示实时进度
+    progress = progress_tracker.get_progress()
+    with st.status("正在抽取知识...", expanded=True) as status:
+        # 进度条
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        stats_cols = st.columns(4)
+        processed_metric = stats_cols[0].empty()
+        triples_metric = stats_cols[1].empty()
+        avg_metric = stats_cols[2].empty()
+        time_metric = stats_cols[3].empty()
 
-        for file_id, file_name, chunk_index, chunk_content in pending_chunks:
-            # 更新进度
-            progress_tracker.update_chunk_start(chunk_index, file_name, file_id)
+        try:
+            # 处理每个分块
+            pending_chunks = chunks if not resume else [
+                c for c in chunks
+                if c[2] in progress_tracker.get_pending_chunks()
+            ]
 
-            # 调用LLM抽取
-            triples = extract_triples(
-                chunk_content,
-                st.session_state.schema_yaml,
-                llm_config
-            )
-
-            if triples:
-                # 转换为字典格式
-                triples_dict = [
-                    {
-                        'head': t.head,
-                        'head_type': t.head_type,
-                        'head_properties': t.head_properties,
-                        'relation': t.relation,
-                        'tail': t.tail,
-                        'tail_type': t.tail_type,
-                        'tail_properties': t.tail_properties
-                    }
-                    for t in triples
-                ]
-
+            for file_id, file_name, chunk_index, chunk_content in pending_chunks:
                 # 更新进度
-                progress_tracker.update_chunk_complete(
-                    chunk_index,
-                    triples_dict,
-                    len(triples)
+                progress_tracker.update_chunk_start(chunk_index, file_name, file_id)
+
+                # 更新UI
+                p = progress_tracker.get_progress()
+                pct = p.progress_percent / 100
+                progress_bar.progress(pct)
+                status_text.text(f"正在处理: {file_name} (分块 {chunk_index + 1})")
+                processed_metric.metric("已处理", f"{p.processed_chunks}/{p.total_chunks}")
+                triples_metric.metric("三元组", p.total_triples)
+                if p.processed_chunks > 0:
+                    avg_metric.metric("平均", f"{p.total_triples / p.processed_chunks:.1f}/块")
+                time_metric.metric("耗时", p.elapsed_time_str)
+
+                # 调用LLM抽取
+                triples = extract_triples(
+                    chunk_content,
+                    st.session_state.schema_yaml,
+                    llm_config
                 )
 
-                # 自动审核模式：直接存入数据库
-                if config['review_mode'] == 'auto' and neo4j_manager:
-                    cypher_queries = generate_cypher_safe(triples)
-                    neo4j_manager.execute_cypher(cypher_queries)
+                if triples:
+                    # 转换为字典格式
+                    triples_dict = [
+                        {
+                            'head': t.head,
+                            'head_type': t.head_type,
+                            'head_properties': t.head_properties,
+                            'relation': t.relation,
+                            'tail': t.tail,
+                            'tail_type': t.tail_type,
+                            'tail_properties': t.tail_properties
+                        }
+                        for t in triples
+                    ]
 
+                    # 更新进度
+                    progress_tracker.update_chunk_complete(
+                        chunk_index,
+                        triples_dict,
+                        len(triples)
+                    )
+
+                    # 自动审核模式：直接存入数据库
+                    if config.get('review_mode') == 'auto' and neo4j_manager:
+                        cypher_queries = generate_cypher_safe(triples)
+                        neo4j_manager.execute_cypher(cypher_queries)
+
+                else:
+                    progress_tracker.update_chunk_complete(chunk_index, [], 0)
+
+            # 完成处理
+            progress_tracker.complete()
+
+            # 更新最终进度
+            p = progress_tracker.get_progress()
+            progress_bar.progress(1.0)
+            status_text.text("处理完成！")
+            processed_metric.metric("已处理", f"{p.total_chunks}/{p.total_chunks}")
+            triples_metric.metric("三元组", p.total_triples)
+            if p.total_chunks > 0:
+                avg_metric.metric("平均", f"{p.total_triples / p.total_chunks:.1f}/块")
+            time_metric.metric("耗时", p.elapsed_time_str)
+
+            status.update(label="知识抽取完成", state="complete", expanded=False)
+
+            # 设置完成状态
+            st.session_state.is_processing = False
+            st.session_state.processing_result = p.get_statistics()
+
+            # 根据审核模式决定下一步
+            if config.get('review_mode') == 'manual':
+                st.session_state.current_step = 5
             else:
-                progress_tracker.update_chunk_complete(chunk_index, [], 0)
+                st.session_state.completed_steps.append(5)
+                st.session_state.current_step = 6
 
-            # 短暂延迟让用户看到进度
-            time.sleep(0.1)
+        except ExtractionError as e:
+            progress_tracker.error(str(e))
+            status.update(label=f"抽取失败: {e}", state="error", expanded=True)
+            st.error(f"抽取失败: {e}")
+            st.session_state.is_processing = False
 
-        # 完成处理
-        progress_tracker.complete()
+        except Exception as e:
+            progress_tracker.error(str(e))
+            status.update(label=f"处理出错: {e}", state="error", expanded=True)
+            st.error(f"处理出错: {e}")
+            st.session_state.is_processing = False
 
-    except ExtractionError as e:
-        progress_tracker.error(str(e))
-        st.error(f"抽取失败: {e}")
-        st.session_state.is_processing = False
+        finally:
+            if neo4j_manager:
+                neo4j_manager.close()
 
-    except Exception as e:
-        progress_tracker.error(str(e))
-        st.error(f"处理出错: {e}")
-        st.session_state.is_processing = False
-
-    finally:
-        if neo4j_manager:
-            neo4j_manager.close()
-
-    st.rerun()
+    # 处理完成后自动跳转
+    if not st.session_state.is_processing:
+        st.session_state._resume_mode = False
+        st.rerun()
 
 
 def render_review_step():

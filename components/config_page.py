@@ -41,15 +41,20 @@ def render_llm_config_simple() -> Dict:
     """渲染双路由 LLM 配置界面"""
     st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">LLM 模型配置</h4>', unsafe_allow_html=True)
 
+    # ---- 从缓存中恢复配置 ----
+    cached_llm = {}
+    if st.session_state.get('config') and st.session_state.config.get('llm'):
+        cached_llm = st.session_state.config['llm']
+
     # ---- Step 1: 选择厂家类型 ----
     vendor_type_options = {
         "openai_compatible": "🔌 OpenAI 兼容接口（智谱/阿里/DeepSeek/Kimi/自定义）",
         "native_langchain": "🧩 原生 LangChain（OpenAI/Anthropic/Gemini）",
     }
 
-    # 从 session_state 恢复或默认
+    # 从缓存恢复或默认
     if 'llm_vendor_type' not in st.session_state:
-        st.session_state.llm_vendor_type = "openai_compatible"
+        st.session_state.llm_vendor_type = cached_llm.get('vendor_type', 'openai_compatible')
 
     selected_vendor_type_display = st.radio(
         "厂家类型",
@@ -71,10 +76,11 @@ def render_llm_config_simple() -> Dict:
     provider_options = list(vendor_registry.keys())
     provider_display_options = [vendor_registry[p]["display_name"] for p in provider_options]
 
-    # 从 session_state 恢复厂商选择
+    # 从缓存恢复厂商选择
     provider_key = f"llm_provider_{vendor_type}"
     if provider_key not in st.session_state:
-        st.session_state[provider_key] = provider_options[0]
+        cached_provider = cached_llm.get('provider', provider_options[0])
+        st.session_state[provider_key] = cached_provider if cached_provider in provider_options else provider_options[0]
 
     # 确保保存的 provider 在当前类型下有效
     saved_provider = st.session_state[provider_key]
@@ -123,9 +129,13 @@ def render_llm_config_simple() -> Dict:
     # Google 不需要端点
     is_google = (vendor_type == "native_langchain" and provider == "google")
 
+    # 从缓存恢复端点值
+    cached_endpoint = cached_llm.get('api_endpoint', '')
+    endpoint_default = cached_endpoint if cached_endpoint else (default_endpoint if default_endpoint else "")
+
     api_endpoint = st.text_input(
         endpoint_label,
-        value=default_endpoint if default_endpoint else "",
+        value=endpoint_default,
         placeholder="https://api.example.com/v1/" if not is_google else "无需填写",
         help=endpoint_help
     )
@@ -142,17 +152,25 @@ def render_llm_config_simple() -> Dict:
             unsafe_allow_html=True
         )
 
+    # 从缓存恢复 API Key
+    cached_api_key = cached_llm.get('api_key', '')
+    api_key_default = env_key if env_key else cached_api_key
+
     api_key = st.text_input(
         "API Key",
         type="password",
         placeholder=f"输入{vendor_info['display_name']} API Key",
-        value=env_key if env_key else "",
+        value=api_key_default,
         help="支持从环境变量自动读取"
     )
 
     # ---- Step 5: 模型名称 ----
+    # 从缓存恢复模型名称
+    cached_model_name = cached_llm.get('model_name', '')
+
     model_name = st.text_input(
         "模型名称",
+        value=cached_model_name,
         placeholder=model_examples,
         help="输入要使用的模型名称"
     )
@@ -198,22 +216,36 @@ def render_neo4j_config() -> Dict:
     """渲染 Neo4j 配置"""
     st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">Neo4j 数据库配置</h4>', unsafe_allow_html=True)
 
+    # 从缓存恢复 Neo4j 配置
+    cached_neo4j = {}
+    if st.session_state.get('config') and st.session_state.config.get('neo4j'):
+        cached_neo4j = st.session_state.config['neo4j']
+
+    cached_uri = cached_neo4j.get('uri', '')
+    cached_user = cached_neo4j.get('user', '')
+    cached_password = cached_neo4j.get('password', '')
+
+    # 如果有缓存，提示用户
+    if cached_password:
+        st.success("✓ 已从上次配置中恢复 Neo4j 连接信息")
+
     st.info("默认配置：URI `bolt://localhost:7687`，用户名 `neo4j`。大多数情况下只需设置密码。")
 
     neo4j_uri = st.text_input(
         "URI",
-        value=DEFAULT_CONFIG['neo4j_uri'],
+        value=cached_uri if cached_uri else DEFAULT_CONFIG['neo4j_uri'],
         help=HELP_TEXTS.get("neo4j_uri", "")
     )
 
     neo4j_user = st.text_input(
         "用户名",
-        value=DEFAULT_CONFIG['neo4j_user']
+        value=cached_user if cached_user else DEFAULT_CONFIG['neo4j_user']
     )
 
     neo4j_password = st.text_input(
         "密码",
         type="password",
+        value=cached_password,
         placeholder="输入 Neo4j 密码",
         help=HELP_TEXTS.get("neo4j_password", "")
     )
@@ -244,6 +276,11 @@ def render_review_mode_config() -> str:
     """渲染审核模式配置"""
     st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">审核设置</h4>', unsafe_allow_html=True)
 
+    # 从缓存恢复审核模式
+    cached_review_mode = "auto"
+    if st.session_state.get('config') and st.session_state.config.get('review_mode'):
+        cached_review_mode = st.session_state.config['review_mode']
+
     review_mode = st.radio(
         "审核模式",
         options=["auto", "manual"],
@@ -251,6 +288,7 @@ def render_review_mode_config() -> str:
             "auto": "自动审核（推荐）- 抽取后直接入库",
             "manual": "人工审核 - 逐个确认三元组"
         }[x],
+        index=0 if cached_review_mode == "auto" else 1,
         help=HELP_TEXTS.get("review_mode", "")
     )
 
