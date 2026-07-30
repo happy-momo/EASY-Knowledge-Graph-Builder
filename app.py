@@ -56,10 +56,8 @@ from components import (
     load_config_from_state,
     init_review_state,
     render_review_panel,
-    render_triple_edit_modal,
     apply_review_action,
     save_review_state,
-    load_review_state,
     TripleReviewState,
     render_processing_page,
     render_progress_indicator,
@@ -537,38 +535,46 @@ def render_review_step():
     # 渲染审核面板
     action, idx = render_review_panel(review_state)
 
-    # 处理编辑动作
-    if action == 'edit' and idx is not None:
-        edited_triple = show_edit_modal(idx, review_state.triples[idx])
-        if edited_triple:
-            apply_review_action(review_state, 'edit', idx, edited_triple)
-            save_review_state(review_state)
-            st.rerun()
+    # 编辑态切换：点击"编辑" -> 进入编辑（状态已由面板设置）
+    if action == 'edit_start':
+        st.rerun()
 
-    # 处理其他动作
+    # 编辑保存：读取表单结果并应用
+    elif action == 'edit_save' and idx is not None:
+        edited = st.session_state.pop('_pending_edited_triple', None)
+        st.session_state.pop('review_editing_idx', None)
+        if edited:
+            apply_review_action(review_state, 'edit', idx, edited)
+            save_review_state(review_state)
+        st.rerun()
+
+    # 编辑取消
+    elif action == 'edit_cancel':
+        st.session_state.pop('review_editing_idx', None)
+        st.rerun()
+
+    # 单条确认/删除
     elif action in ('confirm', 'delete') and idx is not None:
         apply_review_action(review_state, action, idx)
         save_review_state(review_state)
         st.rerun()
 
+    # 批量操作（立即刷新统计）
     elif action in ('confirm_all', 'skip_review'):
         apply_review_action(review_state, action, None)
         save_review_state(review_state)
+        st.rerun()
 
+    # 完成审核 -> 入库
     elif action == 'complete':
-        # 保存审核后的三元组到数据库
-        save_reviewed_triples(review_state)
+        try:
+            save_reviewed_triples(review_state)
+        except Exception as e:
+            st.error(f"保存到 Neo4j 失败: {e}")
+            return
         st.session_state.completed_steps.append(5)
         st.session_state.current_step = 6
         st.rerun()
-
-
-def show_edit_modal(idx: int, triple: Dict) -> Optional[Dict]:
-    """显示编辑弹窗"""
-    save, edited_triple = render_triple_edit_modal(idx, triple)
-    if save:
-        return edited_triple
-    return None
 
 
 def save_reviewed_triples(review_state: TripleReviewState):
@@ -634,6 +640,9 @@ def reset_all_state():
     st.session_state.processing_result = None
     st.session_state.review_state = None
     st.session_state.llm_config = None
+    # 清理审核编辑态
+    st.session_state.pop('review_editing_idx', None)
+    st.session_state.pop('_pending_edited_triple', None)
 
     progress_tracker.reset()
     file_manager.clear_all()

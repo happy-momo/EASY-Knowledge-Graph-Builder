@@ -157,6 +157,69 @@ def get_vendor_type_label(vendor_type: str) -> str:
     return labels.get(vendor_type, vendor_type)
 
 
+# ==================== 统一服务商列表（用户视角，隐藏路由细节） ====================
+
+# 推荐顺序：国内常用优先，再全球主流，最后自定义
+_UNIFIED_VENDOR_ORDER = [
+    ("zhipu", "openai_compatible"),
+    ("alibaba", "openai_compatible"),
+    ("deepseek", "openai_compatible"),
+    ("moonshot", "openai_compatible"),
+    ("openai", "native_langchain"),
+    ("anthropic", "native_langchain"),
+    ("google", "native_langchain"),
+    ("custom", "openai_compatible"),
+]
+
+
+def get_unified_vendor_list() -> List[Dict]:
+    """
+    获取统一的服务商列表（按推荐顺序），合并双路由注册表。
+
+    每项字段：
+        label           显示名称（用户唯一可见标识）
+        vendor_type     路由类型（内部使用）
+        provider        厂商标识（内部使用）
+        base_url        默认端点
+        model_examples  示例模型
+        env_keys        环境变量名列表
+        is_google       是否为 Google（无需端点）
+        is_custom       是否为自定义（端点必填）
+    """
+    result = []
+    for provider, vendor_type in _UNIFIED_VENDOR_ORDER:
+        info = get_vendor_info(vendor_type, provider)
+        if not info:
+            continue
+        result.append({
+            "label": info["display_name"],
+            "vendor_type": vendor_type,
+            "provider": provider,
+            "base_url": info.get("base_url", ""),
+            "model_examples": info.get("model_examples", ""),
+            "env_keys": info.get("env_keys", []),
+            "is_google": (vendor_type == "native_langchain" and provider == "google"),
+            "is_custom": (provider == "custom"),
+        })
+    return result
+
+
+def resolve_vendor(label: str) -> Optional[Dict]:
+    """根据显示名称解析服务商路由信息"""
+    for v in get_unified_vendor_list():
+        if v["label"] == label:
+            return v
+    return None
+
+
+def get_vendor_label(vendor_type: str, provider: str) -> Optional[str]:
+    """根据路由信息反查显示名称（用于从缓存恢复选中项）"""
+    for v in get_unified_vendor_list():
+        if v["vendor_type"] == vendor_type and v["provider"] == provider:
+            return v["label"]
+    return None
+
+
 # ==================== LLM 配置数据类 ====================
 
 @dataclass

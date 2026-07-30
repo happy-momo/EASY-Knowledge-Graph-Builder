@@ -4,7 +4,7 @@
 支持文件的增删改查、文件夹扫描、状态更新等操作。
 """
 
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, field, fields
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 import os
@@ -54,8 +54,10 @@ class FileInfo:
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'FileInfo':
-        """从字典创建"""
-        return cls(**data)
+        """从字典创建（容错：忽略未知键，缺失键使用默认值）"""
+        valid_fields = {f.name for f in fields(cls)}
+        filtered = {k: v for k, v in data.items() if k in valid_fields}
+        return cls(**filtered)
 
 
 class FileManager:

@@ -86,12 +86,6 @@ class ProcessProgress:
             minutes = int((elapsed % 3600) / 60)
             return f"{hours}时{minutes}分"
 
-    def get_remaining_chunks(self) -> List[int]:
-        """获取未处理的分块索引列表"""
-        processed = {cp['chunk_index'] for cp in self.chunk_progress
-                     if cp['status'] == 'completed'}
-        return [i for i in range(self.total_chunks) if i not in processed]
-
 
 class ProgressTracker:
     """进度追踪器 - 支持断点续传"""
@@ -144,7 +138,7 @@ class ProgressTracker:
 
     def update_chunk_start(self, chunk_index: int, file_name: str, file_id: str):
         """
-        开始处理一个分块
+        开始处理一个分块（按 chunk_index upsert，避免续传产生重复记录）
 
         Args:
             chunk_index: 分块索引
@@ -155,16 +149,33 @@ class ProgressTracker:
         self._progress.current_file_id = file_id
         self._progress.current_chunk = chunk_index
 
-        chunk_prog = {
-            'chunk_index': chunk_index,
-            'file_name': file_name,
-            'file_id': file_id,
-            'status': 'processing',
-            'triples_count': 0,
-            'triples': [],
-            'start_time': time.time()
-        }
-        self._progress.chunk_progress.append(chunk_prog)
+        # 查找是否已有该分块的记录（断点续传时会命中）
+        existing = None
+        for cp in self._progress.chunk_progress:
+            if cp['chunk_index'] == chunk_index:
+                existing = cp
+                break
+
+        if existing:
+            # 复用已有记录，重置为 processing 状态，避免僵尸记录
+            existing['status'] = 'processing'
+            existing['file_name'] = file_name
+            existing['file_id'] = file_id
+            existing['triples_count'] = 0
+            existing['triples'] = []
+            existing['error_message'] = None
+            existing['start_time'] = time.time()
+            existing['end_time'] = None
+        else:
+            self._progress.chunk_progress.append({
+                'chunk_index': chunk_index,
+                'file_name': file_name,
+                'file_id': file_id,
+                'status': 'processing',
+                'triples_count': 0,
+                'triples': [],
+                'start_time': time.time()
+            })
         self.save()
 
     def update_chunk_complete(self, chunk_index: int, triples: List[Dict],
@@ -237,12 +248,15 @@ class ProgressTracker:
         self.save()
 
     def complete(self):
-        """处理完成"""
+        """处理完成
+
+        注意：保留 COMPLETED 状态（不回退为 IDLE），以便重启后人工审核步骤仍能
+        通过 get_all_triples() 读取已抽取的三元组。can_resume() 已明确仅对
+        RUNNING/PAUSED/ERROR 返回 True，因此 COMPLETED 不会触发"恢复处理"提示。
+        新一轮抽取由 start() / reset() 显式重置。
+        """
         self._progress.status = ProcessStatus.COMPLETED.value
         self._progress.end_time = time.time()
-        self.save()
-        # 完成后重置为IDLE，避免下次启动时检测到未完成的任务
-        self._progress.status = ProcessStatus.IDLE.value
         self.save()
 
     def error(self, message: str = None):

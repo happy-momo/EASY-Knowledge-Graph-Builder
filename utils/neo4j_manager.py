@@ -7,6 +7,7 @@
 from neo4j import GraphDatabase
 from typing import Optional, List, Dict
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -55,45 +56,54 @@ class Neo4jManager:
 
     def __enter__(self):
         """上下文管理器入口"""
-        self.connect()
+        if not self.connect():
+            raise RuntimeError(f"Neo4j 连接失败: {self.uri}（请检查 URI/用户名/密码及服务是否启动）")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """上下文管理器出口"""
         self.close()
 
+    def _run_single(self, session, query_obj) -> bool:
+        """执行单条查询（带重试），失败返回 False"""
+        for attempt in range(self.max_retries + 1):
+            try:
+                if hasattr(query_obj, 'query') and hasattr(query_obj, 'parameters'):
+                    session.run(query_obj.query, **query_obj.parameters)
+                else:
+                    session.run(query_obj)
+                return True
+            except Exception as e:
+                logger.error(f"Cypher执行错误 (尝试 {attempt + 1}/{self.max_retries + 1}): {e}")
+                if attempt < self.max_retries:
+                    time.sleep(0.1 * (attempt + 1))  # 轻微退避
+        return False
+
     def execute_cypher(self, queries: List, retry_count: int = 0) -> bool:
         """
-        执行Cypher查询（支持重试）
+        执行Cypher查询（逐条执行，单条失败不中断剩余查询）
 
         Args:
             queries: CypherQuery列表或Cypher语句列表
-            retry_count: 当前重试次数
+            retry_count: 未使用（保留以向后兼容），重试在 _run_single 内完成
 
         Returns:
-            是否成功
+            是否全部成功（若有任意一条失败则返回 False，但已尽可能执行其余查询）
         """
         if not self._driver:
             if not self.connect():
                 return False
 
+        failed = 0
         try:
             with self._driver.session() as session:
                 for query_obj in queries:
-                    try:
-                        if hasattr(query_obj, 'query') and hasattr(query_obj, 'parameters'):
-                            # 参数化查询
-                            session.run(query_obj.query, **query_obj.parameters)
-                        else:
-                            # 普通查询
-                            session.run(query_obj)
-                    except Exception as e:
-                        logger.error(f"Cypher执行错误: {e}")
-                        if retry_count < self.max_retries:
-                            logger.info(f"重试执行 (第{retry_count + 1}次)")
-                            return self.execute_cypher([query_obj], retry_count + 1)
-                        raise
+                    if not self._run_single(session, query_obj):
+                        failed += 1
 
+            if failed:
+                logger.error(f"Neo4j: {failed}/{len(queries)} 条查询执行失败")
+                return False
             return True
 
         except Exception as e:
@@ -124,6 +134,9 @@ class Neo4jManager:
 
     def get_statistics(self) -> Dict:
         """获取数据库统计信息"""
+        if not self._driver:
+            if not self.connect():
+                return {}
         try:
             with self._driver.session() as session:
                 # 节点统计

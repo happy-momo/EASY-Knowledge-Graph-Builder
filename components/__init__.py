@@ -2,17 +2,6 @@
 组件模块
 """
 
-# 原有组件
-from .ui_components import (
-    display_header,
-    display_step_navigation,
-    display_loading_status,
-    display_triple_cards,
-    display_neo4j_config,
-    display_build_button
-)
-
-# 新组件
 from .step_navigation import (
     render_step_navigation,
     render_step_title,
@@ -34,6 +23,7 @@ from .schema_templates import (
     render_template_selection,
     render_yaml_upload,
     render_manual_input,
+    render_schema_visualization,
     render_schema_preview,
     validate_schema
 )
@@ -63,7 +53,6 @@ from .review_panel import (
     render_triple_edit_modal,
     apply_review_action,
     save_review_state,
-    load_review_state,
     TripleReviewState
 )
 
@@ -79,14 +68,6 @@ from .process_display import (
 
 
 __all__ = [
-    # 原有
-    "display_header",
-    "display_step_navigation",
-    "display_loading_status",
-    "display_triple_cards",
-    "display_neo4j_config",
-    "display_build_button",
-
     # 步骤导航
     "render_step_navigation",
     "render_step_title",
@@ -106,6 +87,7 @@ __all__ = [
     "render_template_selection",
     "render_yaml_upload",
     "render_manual_input",
+    "render_schema_visualization",
     "render_schema_preview",
     "validate_schema",
 
@@ -132,7 +114,6 @@ __all__ = [
     "render_triple_edit_modal",
     "apply_review_action",
     "save_review_state",
-    "load_review_state",
     "TripleReviewState",
 
     # 处理显示

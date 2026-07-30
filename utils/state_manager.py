@@ -36,6 +36,9 @@ class StateManager:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
+        # I/O 锁：防止 Streamlit 多线程并发写同一文件导致损坏
+        self._io_lock = threading.Lock()
+
         # 状态文件路径
         self.config_file = self.data_dir / "config.json"
         self.files_file = self.data_dir / "files.json"
@@ -45,7 +48,7 @@ class StateManager:
 
     def save(self, key: str, data: Any) -> bool:
         """
-        保存状态到文件
+        保存状态到文件（原子写：临时文件 + os.replace，避免并发/中断损坏）
 
         Args:
             key: 状态键名 (config, files, progress, triples, review)
@@ -63,9 +66,14 @@ class StateManager:
                 "saved_at": datetime.now().isoformat(),
                 "version": "v2"
             }
+            content = json.dumps(save_data, ensure_ascii=False, indent=2)
 
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=2)
+            # 原子写：先写临时文件，再 rename 替换目标文件
+            tmp_path = file_path.with_suffix(file_path.suffix + '.tmp')
+            with self._io_lock:
+                with open(tmp_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                os.replace(tmp_path, file_path)
             return True
         except Exception as e:
             print(f"Error saving state {key}: {e}")
@@ -102,13 +110,14 @@ class StateManager:
             key: 要清除的键名，None表示清除所有
         """
         try:
-            if key:
-                file_path = self.data_dir / f"{key}.json"
-                if file_path.exists():
-                    file_path.unlink()
-            else:
-                for f in self.data_dir.glob("*.json"):
-                    f.unlink()
+            with self._io_lock:
+                if key:
+                    file_path = self.data_dir / f"{key}.json"
+                    if file_path.exists():
+                        file_path.unlink()
+                else:
+                    for f in self.data_dir.glob("*.json"):
+                        f.unlink()
         except Exception as e:
             print(f"Error clearing state: {e}")
 

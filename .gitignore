@@ -1,4 +1,4 @@
-# Python
+# 测试与构建产物
 __pycache__/
 *.py[cod]
 *$py.class
@@ -19,6 +19,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.coverage
+htmlcov/
 
 # 虚拟环境
 venv/
@@ -33,19 +36,17 @@ env/
 *.swo
 *~
 
-# Streamlit
+# Streamlit 配置
 .streamlit/secrets.toml
 
-# 状态持久化数据
+# 状态持久化与上传文件
 .data/
-*.json
 
-# 上传文件
-uploads/
-
-# 环境变量
+# 敏感信息
 .env
 .env.local
+secrets/
+credentials/
 
 # 日志
 *.log
@@ -60,15 +61,3 @@ Thumbs.db
 *.temp
 temp/
 tmp/
-
-# 测试
-.pytest_cache/
-.coverage
-htmlcov/
-
-# 文档构建
-docs/_build/
-
-# 敏感信息
-secrets/
-credentials/

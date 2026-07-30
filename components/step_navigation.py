@@ -49,6 +49,8 @@ def render_step_navigation(current_step: int, completed_steps: List[int] = None)
         # 可点击判断
         can_click = (i in completed_set or i < current_step) and i != current_step
         clickable_attr = 'data-clickable="true"' if can_click else ''
+        tabindex = 'tabindex="0"' if can_click else ''
+        aria_current = 'aria-current="step"' if i == current_step else ''
 
         # 未来步骤灰显
         dim_style = "opacity: 0.45;" if (i > current_step and i not in completed_set) else ""
@@ -56,6 +58,7 @@ def render_step_navigation(current_step: int, completed_steps: List[int] = None)
 
         nav_html += (
             f'<div class="step-item" data-step="{i}" {clickable_attr} '
+            f'role="button" {tabindex} {aria_current} '
             f'style="{dim_style}{cursor_style}">'
             f'<div class="step-number {status_class}">{number_display}</div>'
             f'<div class="step-title {title_class}">{step["title"]}</div>'
@@ -85,6 +88,14 @@ def render_step_navigation(current_step: int, completed_steps: List[int] = None)
                 var url = new URL(window.parent.location.href);
                 url.searchParams.set('nav_step', stepIndex);
                 window.parent.location.href = url.toString();
+            });
+
+            // 键盘可访问性：Enter / Space 触发跳转
+            item.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.click();
+                }
             });
         });
     }

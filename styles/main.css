@@ -86,6 +86,11 @@
     --gradient-surface: linear-gradient(180deg, #ffffff 0%, #FAFBFC 100%);
     --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.4) 100%);
 
+    /* 兼容别名：部分组件历史引用，统一指向已有令牌，避免视觉失效 */
+    --gradient-primary: var(--gradient-brand);
+    --accent-primary: var(--color-primary-600);
+    --text-muted: var(--text-tertiary);
+
     /* 圆角 */
     --radius-sm:  6px;
     --radius-md:  10px;
@@ -507,6 +512,76 @@ h4 {
     }
 }
 
+/* ==================== 步骤容器 ==================== */
+.steps-container {
+    width: 100%;
+    margin-bottom: var(--space-6);
+}
+
+/* 步骤标题区（render_step_title） */
+.step-header h2 {
+    margin: 0 0 var(--space-1) 0;
+}
+
+/* ==================== 加载动画容器 ==================== */
+.loading-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: 3px solid var(--bg-tertiary);
+    border-top-color: var(--color-primary-500);
+    border-radius: var(--radius-full);
+    animation: spin 0.8s linear infinite;
+}
+
+.loading-text {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+/* ==================== 完成对勾 ==================== */
+.completion-checkmark {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-full);
+    background: var(--color-success);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--space-5);
+    box-shadow: var(--shadow-glow-sm);
+    animation: checkPop var(--duration-slower) var(--ease-bounce);
+}
+
+@keyframes checkPop {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+    60% {
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* ==================== 进度动画条（render_progress_bar） ==================== */
+.progress-animated {
+    position: relative;
+}
+
 /* ==================== 三元组卡片 ==================== */
 .triple-card {
     background: var(--bg-elevated);
@@ -923,12 +998,18 @@ h4 {
         align-items: stretch;
     }
 
-    .triple-entity {
+    .entity {
         min-width: 100%;
     }
 
     .card {
         padding: var(--space-4);
+    }
+
+    /* Schema 结构图在小屏可横向滚动，避免溢出 */
+    .schema-graph-svg {
+        max-width: 100%;
+        overflow-x: auto;
     }
 }
 
@@ -980,7 +1061,7 @@ html, body, .main, .stApp {
 .stCheckbox label,
 [data-testid="stText"] label,
 [data-testid="stMetric"] label,
-.css-1r6slb0, .css-1lcb5hc, .css-17vbkjt {
+[data-testid="stHeading"] {
     color: var(--text-primary) !important;
 }
 
@@ -1000,7 +1081,8 @@ html, body, .main, .stApp {
     color: var(--text-primary) !important;
 }
 
-/* Streamlit 卡片/容器背景色 */
-.css-1lcb5hc .stMarkdown {
+/* Streamlit 容器内 markdown 背景透明（用稳定 data-testid，避免哈希类名失效） */
+[data-testid="stVerticalBlock"] .stMarkdown,
+[data-testid="stHorizontalBlock"] .stMarkdown {
     background-color: transparent !important;
 }
