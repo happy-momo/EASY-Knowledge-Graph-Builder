@@ -1,560 +1,756 @@
+"""
+KG AI Builder - 主应用（重构版）
+
+产品化设计，使用新的视觉系统和标准化LLM配置。
+"""
+
 import streamlit as st
 import yaml
-import os
 import json
-import tempfile
-import shutil
-from datetime import datetime
-from utils.doc_loader import load_document
-from utils.graph_db import Neo4jHandler
-from utils.llm_extractor import process_text_with_llm, generate_cypher
+import time
+import logging
+from typing import Dict, List, Tuple, Optional
+from pathlib import Path
+
+# 日志配置（在页面配置前完成，确保关键路径可观测）
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 # 页面配置
-st.set_page_config(page_title="KG AI Builder", layout="wide", page_icon="🔗")
+from config.app_config import PAGE_CONFIG, STEPS, DEFAULT_CONFIG
+st.set_page_config(**PAGE_CONFIG)
 
-# --- 自定义CSS样式 --- 
-# 从外部文件加载CSS样式
-with open("styles/main.css", "r", encoding="utf-8") as f:
-    custom_css = f.read()
-st.markdown(f"<style>{custom_css}</style>", unsafe_allow_html=True)
+# 加载CSS样式（用 st.html 注入到 head 并去重，避免 st.markdown 注入 body 在
+# 频繁 rerun 时出现"主题色闪现"的 FOUC，跨浏览器重绘时序差异更小）
+try:
+    with open("styles/main.css", "r", encoding="utf-8") as f:
+        custom_css = f.read()
+    st.markdown(f"<style>{custom_css}</style>", unsafe_allow_html=True)
+except FileNotFoundError:
+    st.warning("CSS样式文件未找到，使用默认样式")
+    custom_css = ""
 
-# 页面标题和副标题
-st.markdown("""
-<h1>KG AI Builder</h1>
-<p class="page-subtitle">Transform raw text into structured insights</p>
-""", unsafe_allow_html=True)
+# 导入新的核心模块
+from utils.llm_config import LLMConfig, get_preset_configs, create_llm_config_from_preset
+from utils.extractor import extract_triples, prepare_extraction, KnowledgeGraphTriple, ExtractionError
+from utils.cypher_generator import generate_cypher_safe
+from utils.neo4j_manager import Neo4jManager
+from utils.state_manager import state_manager
+from utils.progress_tracker import progress_tracker
+from utils.file_manager import file_manager
+from utils.env_checker import check_neo4j_connection
 
-# 添加JavaScript来禁用输入框的回车提交功能
-# 从外部文件加载JavaScript脚本
-with open("styles/main.js", "r", encoding="utf-8") as f:
-    custom_js = f.read()
-st.markdown(f"<script>{custom_js}</script>", unsafe_allow_html=True)
+# 导入组件
+from components import (
+    render_step_navigation,
+    render_step_title,
+    render_navigation_buttons,
+    get_step_name,
+    get_step_index,
+    handle_step_navigation,
+    render_welcome_page,
+    render_help_section,
+    render_docker_help,
+    render_schema_selection,
+    validate_schema,
+    render_file_import_section,
+    has_files_loaded,
+    get_all_chunks_for_processing,
+    render_config_section,
+    validate_config,
+    save_config_to_state,
+    load_config_from_state,
+    init_review_state,
+    render_review_panel,
+    apply_review_action,
+    save_review_state,
+    TripleReviewState,
+    render_processing_page,
+    render_progress_indicator,
+    render_completion_page,
+    render_error_page,
+    render_loading_animation
+)
+from components.icons import icon
 
-# --- 步骤式主界面 ---
 
-# 主要内容区域
-main_col = st.container()
+# ==================== 错误文案友好化 ====================
 
-with main_col:
-    # 步骤导航
-    st.markdown("""
-    <div class="steps-container">
-        <div class="step-nav">
-            <div class="step-item">
-                <div class="step-number active">1</div>
-                <div class="step-title">SCHEMA CONFIG</div>
-                <div class="step-description">Define entity and relationship types</div>
-            </div>
-            <div class="step-item">
-                <div class="step-number">2</div>
-                <div class="step-title">SOURCE DOCS</div>
-                <div class="step-description">Upload text documents</div>
-            </div>
-            <div class="step-item">
-                <div class="step-number">3</div>
-                <div class="step-title">STORAGE</div>
-                <div class="step-description">Configure database&LLM settings</div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+# 常见错误关键词 → 用户友好提示
+_ERROR_MAP = [
+    ("ConnectionError", "无法连接到服务器，请检查网络连接和 API 地址是否正确"),
+    ("Timeout", "连接超时，请检查网络状态或增大超时时间"),
+    ("RateLimit", "请求频率超限，请稍后重试"),
+    ("Authentication", "认证失败，请检查 API Key 是否正确"),
+    ("Unauthorized", "认证失败，请检查 API Key 是否正确"),
+    ("401", "认证失败，请检查 API Key 是否正确"),
+    ("403", "权限不足，请检查 API Key 是否有对应权限"),
+    ("404", "接口地址不存在，请检查 API 端点 URL"),
+    ("Neo4j", "数据库连接失败，请检查 Neo4j 地址、用户名和密码"),
+    ("SSL", "SSL 连接失败，请检查网络环境或联系服务商"),
+    ("DNS", "DNS 解析失败，请检查网络连接"),
+    ("YAML", "配置格式错误，请检查 YAML 语法"),
+    ("JSONDecode", "数据解析失败，请检查 LLM 返回格式"),
+]
 
-with main_col:
-    # 步骤 1: Schema 配置 (YAML)
-    st.markdown('<h3>Schema Configuration</h3>', unsafe_allow_html=True)
-    uploaded_yaml = st.file_uploader("Upload YAML Schema", type=["yaml", "yml"])
 
-    ontology_content = ""
-    if uploaded_yaml:
-        try:
-            ontology_data = yaml.safe_load(uploaded_yaml)
+def _friendly_error(error: str) -> str:
+    """将技术错误信息映射为友好提示"""
+    for keyword, friendly in _ERROR_MAP:
+        if keyword.lower() in str(error).lower():
+            return friendly
+    return "操作执行出错，请检查配置和网络连接后重试"
 
-            ontology_content = yaml.dump(ontology_data, allow_unicode=True)
 
-            # 终端风格展示 YAML 解析结果（统一为一个完整的终端）
-            # 使用紧凑的字符串拼接避免多余空白
-            terminal_content = '<div class="terminal-container"><div class="terminal-header"><div class="terminal-dot close"></div><div class="terminal-dot minimize"></div><div class="terminal-dot maximize"></div><div class="terminal-title">YAML Schema Analysis</div></div><div class="terminal"><span class="command">$</span> <span class="path">analyze-yaml</span> <span class="result">{0}</span><br><span class="success">✓</span> <span class="info">YAML schema loaded successfully</span><br><br>'.format(
-                uploaded_yaml.name)
+def _show_error(friendly_message: str, technical_detail: str = None):
+    """
+    显示友好错误消息 + 可折叠的技术详情
 
-            # 检查YAML结构，可能键名是'relationships'而不是'relations'
-            entities_key = 'entities' if 'entities' in ontology_data else 'entity_types'
-            relations_key = 'relations' if 'relations' in ontology_data else 'relationships'
+    Args:
+        friendly_message: 用户友好的错误描述
+        technical_detail: 原始技术错误信息（在折叠区域中显示）
+    """
+    st.error(friendly_message)
+    if technical_detail:
+        with st.expander("查看技术详情"):
+            st.code(str(technical_detail), language="text")
 
-            # 按实体和关系分类展示
-            if entities_key in ontology_data:
-                terminal_content += '<span class="info">Entities defined:</span><br>'
-                for i, entity in enumerate(ontology_data[entities_key]):
-                    terminal_content += '<span class="sentence">[{0:2d}] {1}</span><br>'.format(i + 1, entity)
 
-            terminal_content += '<br>'
+# ==================== 状态初始化 ====================
+def init_session_state():
+    """初始化session_state"""
+    defaults = {
+        'current_step': 0,
+        'completed_steps': [],
+        'schema_config': None,
+        'schema_yaml': "",
+        'config': None,
+        'is_processing': False,
+        'processing_result': None,
+        'review_state': None,
+        'llm_config': None,
+        '_resume_shown': False,
+        '_pending_resume': False
+    }
 
-            if relations_key in ontology_data:
-                terminal_content += '<span class="info">Relationships defined:</span><br>'
-                for i, relation in enumerate(ontology_data[relations_key]):
-                    terminal_content += '<span class="sentence">[{0:2d}] {1}</span><br>'.format(i + 1, relation)
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
-            terminal_content += '</div></div>'
-            st.markdown(terminal_content, unsafe_allow_html=True)
 
-        except Exception as e:
-            st.error(f"YAML 解析错误: {e}")
+def load_persisted_state():
+    """从持久化存储加载状态"""
+    # 加载配置
+    saved_config = state_manager.load('config')
+    if saved_config and not st.session_state.config:
+        st.session_state.config = saved_config
 
-    # 提供默认模板
-    else:
-        st.info("Please upload a YAML file defining entities and relationships")
+    # 加载LLM配置
+    saved_llm = state_manager.load('llm_config')
+    if saved_llm:
+        st.session_state.llm_config = LLMConfig.from_dict(saved_llm)
 
-    # 步骤 2: 上传文档
-    # st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<h3>Source Documents</h3>', unsafe_allow_html=True)
+    # 检查是否有可恢复的进度（仅在用户确认后恢复）
+    if progress_tracker.can_resume() and not st.session_state.get('_resume_shown'):
+        # 显示恢复提示，让用户选择是否恢复
+        st.session_state._pending_resume = True
 
-    uploaded_file = st.file_uploader("Upload Text Document", type=["pdf", "docx", "xlsx"])
 
-    # 文本块大小配置
-    col1, col2 = st.columns(2)
-    with col1:
-        max_chunk_size = st.number_input("最大文本块大小 (字符数)", min_value=500, max_value=4000,
-                                         value=2000, step=100,
-                                         key="max_chunk_input")
-    with col2:
-        min_chunk_size = st.number_input("最小文本块大小 (字符数)", min_value=100, max_value=2000,
-                                         value=500, step=50,
-                                         key="min_chunk_input")
+def show_resume_prompt():
+    """显示恢复提示"""
+    if st.session_state.get('_pending_resume') and not st.session_state.get('_resume_shown'):
+        # 使用HTML自定义样式，确保文字可见
+        st.markdown(
+            '<div style="background-color: #fef3c7; border: 1px solid #f59e0b; '
+            'border-radius: 8px; padding: 16px; margin: 16px 0; color: var(--text-warning);">'
+            f'<p style="margin: 0; font-weight: 600; color: var(--text-warning); display: flex; align-items: center; gap: 6px;">{icon("warning", 18, "#92400E")} 检测到未完成的处理任务</p>'
+            '<p style="margin: 8px 0 0 0; color: var(--text-warning);">您有未完成的处理任务，是否恢复？</p>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("恢复处理", key="resume_processing"):
+                st.session_state.current_step = 4
+                st.session_state.is_processing = True
+                st.session_state._resume_shown = True
+                st.session_state._pending_resume = False
+                st.rerun()
+        with col2:
+            if st.button("重新开始", key="reset_processing"):
+                progress_tracker.reset()
+                st.session_state._resume_shown = True
+                st.session_state._pending_resume = False
+                st.rerun()
+        return True
+    return False
 
-    chunks = []
-    if uploaded_file:
-        with st.spinner("智能解析文档中..."):
-            chunks_list, err = load_document(uploaded_file, max_chunk_size, min_chunk_size)
-            if err:
-                st.error(err)
-            else:
-                chunks = chunks_list
-                st.success(f"智能切分完成！共生成 {len(chunks)} 个语义块")
 
-                # 保存文件信息到session state
-                st.session_state['uploaded_files'] = [{
-                    'name': uploaded_file.name,
-                    'size': uploaded_file.size,
-                    'chunks_count': len(chunks),
-                    'uploaded_at': datetime.now().isoformat()
-                }]
+def save_persisted_state():
+    """保存状态到持久化存储"""
+    if st.session_state.config:
+        state_manager.save('config', st.session_state.config)
 
-                # 显示统计信息
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("总文本块数", len(chunks))
-                with col2:
-                    avg_size = sum(len(chunk) for chunk in chunks) // len(chunks) if chunks else 0
-                    st.metric("平均块大小", f"{avg_size} 字符")
-                with col3:
-                    total_chars = sum(len(chunk) for chunk in chunks)
-                    st.metric("总字符数", f"{total_chars} 字符")
+    if st.session_state.llm_config:
+        state_manager.save('llm_config', st.session_state.llm_config.to_dict())
 
-                # 终端风格展示解析内容
-                terminal_content = '<div class="terminal-container"><div class="terminal-header"><div class="terminal-dot close"></div><div class="terminal-dot minimize"></div><div class="terminal-dot maximize"></div><div class="terminal-title">Document Parsing Results</div></div><div class="terminal"><span class="command">$</span> <span class="path">smart-parse-document</span> <span class="result">{0}</span><br><span class="success">✓</span> <span class="info">Document parsed successfully with smart segmentation</span><br><span class="info">Total semantic chunks:</span> <span class="result">{1}</span><br><span class="info">Average chunk size:</span> <span class="result">{2} chars</span><br><br><span class="info">Sample chunks:</span><br>'.format(
-                    uploaded_file.name, len(chunks), avg_size)
 
-                # 显示前3个文本块
-                for i, chunk in enumerate(chunks[:3]):
-                    preview = chunk[:100] + "..." if len(chunk) > 100 else chunk
-                    terminal_content += '<span class="sentence">[{0:2d}] {1}</span><br>'.format(i + 1, preview)
+# ==================== 主应用 ====================
+def main():
+    """主应用流程"""
+    # 初始化
+    init_session_state()
+    load_persisted_state()
 
-                # 如果文本块数量超过3个，显示省略号
-                if len(chunks) > 3:
-                    terminal_content += '<span class="info">... and {0} more chunks</span><br>'.format(len(chunks) - 3)
+    # 处理步骤导航跳转请求（来自进度条点击）
+    handle_step_navigation()
 
-                terminal_content += '</div></div>'
-                st.markdown(terminal_content, unsafe_allow_html=True)
+    # 检查是否需要显示恢复提示
+    if show_resume_prompt():
+        return
 
-    # 步骤 3: 存储配置
-    # st.markdown('<h3>Storage Configuration</h3>', unsafe_allow_html=True)
-
-    # LLM 模型选择
-    st.subheader("LLM Configuration")
-    llm_options = [
-        {"name": "GLM-4-Flash (智谱AI)", "key": "glm4", "model_name": "glm-4-flash",
-         "api_key_label": "Zhipu AI API Key"},
-        {"name": "GLM-4 (智谱AI)", "key": "glm4_full", "model_name": "glm-4", "api_key_label": "Zhipu AI API Key"},
-        {"name": "GPT-4 (OpenAI)", "key": "gpt4", "model_name": "gpt-4", "api_key_label": "OpenAI API Key"},
-        {"name": "GPT-3.5-Turbo (OpenAI)", "key": "gpt35", "model_name": "gpt-3.5-turbo",
-         "api_key_label": "OpenAI API Key"},
-        {"name": "GPT-4-Turbo (OpenAI)", "key": "gpt4_turbo", "model_name": "gpt-4-turbo",
-         "api_key_label": "OpenAI API Key"},
-        {"name": "Claude 3-Opus (Anthropic)", "key": "claude3_opus", "model_name": "claude-3-opus-20240229",
-         "api_key_label": "Anthropic API Key"},
-        {"name": "Claude 3-Sonnet (Anthropic)", "key": "claude3_sonnet", "model_name": "claude-3-sonnet-20240229",
-         "api_key_label": "Anthropic API Key"},
-        {"name": "Claude 3-Haiku (Anthropic)", "key": "claude3_haiku", "model_name": "claude-3-haiku-20240307",
-         "api_key_label": "Anthropic API Key"},
-        {"name": "Gemini-Pro (Google)", "key": "gemini_pro", "model_name": "gemini-pro",
-         "api_key_label": "Google API Key"},
-        {"name": "Gemini-Pro-Vision (Google)", "key": "gemini_pro_vision", "model_name": "gemini-pro-vision",
-         "api_key_label": "Google API Key"},
-        {"name": "Qwen-Turbo (阿里云通义千问)", "key": "qwen_turbo", "model_name": "qwen-turbo",
-         "api_key_label": "Aliyun API Key"},
-        {"name": "Qwen-Plus (阿里云通义千问)", "key": "qwen_plus", "model_name": "qwen-plus",
-         "api_key_label": "Aliyun API Key"},
-        {"name": "Llama 3-8B (Meta)", "key": "llama3_8b", "model_name": "llama3-8b",
-         "api_key_label": "Llama 3 API Key"},
-        {"name": "Llama 3-70B (Meta)", "key": "llama3_70b", "model_name": "llama3-70b",
-         "api_key_label": "Llama 3 API Key"}
-    ]
-
-    # 渲染模型选择下拉框
-    default_llm_index = 0
-
-    llm_choice = st.selectbox(
-        "Select LLM Model",
-        options=llm_options,
-        index=default_llm_index,
-        format_func=lambda x: x["name"]
+    # 渲染步骤导航
+    render_step_navigation(
+        st.session_state.current_step,
+        st.session_state.completed_steps
     )
 
-    # 根据选择的模型显示对应的API Key输入框，使用缓存数据
-    selected_llm_key = llm_choice["key"]
-    selected_model_name = llm_choice["model_name"]
-    api_key_label = llm_choice["api_key_label"]
-    api_key = st.text_input(api_key_label,
-                            value='',
-                            type="password",
-                            key="api_key_input")
+    # 根据当前步骤渲染页面
+    current_step = st.session_state.current_step
 
-    # 数据库配置，使用缓存数据
-    st.subheader("Database (Neo4j)")
+    step_functions = [
+        render_welcome_step,
+        render_schema_step,
+        render_file_step,
+        render_config_step,
+        render_process_step,
+        render_review_step,
+        render_complete_step
+    ]
 
-    # 添加说明文字
-    st.markdown("💡 **大多数情况下，您只需要设置密码即可连接本地Neo4j数据库。**")
-    st.markdown("默认配置：URI: `bolt://localhost:7687`，用户名: `neo4j`")
+    if 0 <= current_step < len(step_functions):
+        step_functions[current_step]()
 
-    # 使用默认值
-    default_uri = 'bolt://localhost:7687'
-    default_user = 'neo4j'
 
-    # 初始化变量
-    neo4j_uri = default_uri
-    neo4j_user = default_user
+# ==================== 步骤实现 ====================
+def render_welcome_step():
+    """步骤0: 欢迎页"""
+    render_step_title(0)
 
-    # 使用session_state来跟踪折叠面板状态
-    if 'neo4j_expander_expanded' not in st.session_state:
-        st.session_state.neo4j_expander_expanded = False
+    # 渲染欢迎页
+    action = render_welcome_page()
 
-    # 使用折叠面板让高级配置可选
-    expander_expanded = st.checkbox("🔧 显示高级配置（如需修改默认设置）",
-                                    value=st.session_state.neo4j_expander_expanded,
-                                    key="neo4j_expander_checkbox")
+    # 渲染帮助
+    render_help_section()
+    render_docker_help()
 
-    # 更新session_state
-    st.session_state.neo4j_expander_expanded = expander_expanded
+    # 处理开始动作
+    if action == "start":
+        # 将首页快速连接的配置持久化，以便配置页可以读取缓存
+        if st.session_state.get('config'):
+            save_persisted_state()
+        st.session_state.completed_steps.append(0)
+        st.session_state.current_step = 1
+        st.rerun()
 
-    if expander_expanded:
-        with st.expander("高级配置", expanded=True):
-            # 使用不同的变量名，然后在外部更新
-            uri_input = st.text_input("Neo4j URI",
-                                      value=default_uri,
-                                      placeholder="bolt://localhost:7687",
-                                      key="neo4j_uri_input",
-                                      help="Neo4j数据库连接地址，默认使用本地7687端口")
-            user_input = st.text_input("Neo4j Username",
-                                       value=default_user,
-                                       placeholder="neo4j",
-                                       key="neo4j_user_input",
-                                       help="Neo4j数据库用户名，默认为neo4j")
-        # 在expander块外更新外部变量
-        neo4j_uri = uri_input
-        neo4j_user = user_input
+
+def render_schema_step():
+    """步骤1: Schema配置"""
+    render_step_title(1)
+
+    # 渲染Schema选择
+    schema_dict, schema_yaml = render_schema_selection()
+
+    can_proceed = False
+    next_help = None
+
+    if schema_dict:
+        # 验证Schema
+        is_valid, error_msg = validate_schema(schema_dict)
+
+        if is_valid:
+            st.session_state.schema_config = schema_dict
+            st.session_state.schema_yaml = schema_yaml
+            can_proceed = True
+        else:
+            st.error(error_msg)
+            next_help = "请修复Schema中的错误后继续"
     else:
-        # 使用默认值，不显示高级配置
-        neo4j_uri = default_uri
-        neo4j_user = default_user
+        next_help = "请先选择一个模板或手动输入Schema并解析"
 
-    # 密码输入框始终显示
-    neo4j_pwd = st.text_input("Neo4j Password",
-                              value='',
-                              type="password",
-                              placeholder="请输入您的Neo4j密码",
-                              key="neo4j_pwd_input",
-                              help="Neo4j数据库密码，这是必填项")
+    # 导航按钮（常驻显示，不满足条件时置灰带提示）
+    action = render_navigation_buttons(
+        current_step=1,
+        can_proceed=can_proceed,
+        show_back=True,
+        next_help=next_help
+    )
 
-    # 缓存管理已移除，仅保留自动保存
+    if action == "next":
+        st.session_state.completed_steps.append(1)
+        st.session_state.current_step = 2
+        st.rerun()
+    elif action == "back":
+        st.session_state.current_step = 0
+        st.rerun()
 
-    # 初始化session_state用于构建结果
-    if 'build_success' not in st.session_state:
-        st.session_state.build_success = None
-    if 'build_error' not in st.session_state:
-        st.session_state.build_error = None
-    if 'build_stats' not in st.session_state:
-        st.session_state.build_stats = None
-    if 'build_traceback' not in st.session_state:
-        st.session_state.build_traceback = None
-    if 'current_chunk' not in st.session_state:
-        st.session_state.current_chunk = None
-    if 'processing_progress' not in st.session_state:
-        st.session_state.processing_progress = 0
-    if 'current_chunk_content' not in st.session_state:
-        st.session_state.current_chunk_content = None
-    if 'current_triples' not in st.session_state:
-        st.session_state.current_triples = None
 
-    # 生成图谱按钮，使用参考图片样式
-    build_button_clicked = st.button("▶ Build Graph", type="primary", use_container_width=True)
+def render_file_step():
+    """步骤2: 文件导入"""
+    render_step_title(2)
 
-    # 创建动态更新容器
-    progress_container = st.empty()
-    result_container = st.empty()
-    loading_container = st.empty()
+    # 渲染文件导入
+    files, changed = render_file_import_section()
 
-    # 按钮点击事件处理逻辑
-    if build_button_clicked:
-        # 立即显示加载动画
-        loading_html = """
-        <div class="loading-container">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">正在初始化处理...</div>
-            <div class="loading-subtext">正在验证配置和建立连接</div>
-            <div class="progressive-loader">
-                <div class="progressive-loader-bar"></div>
-            </div>
-        </div>
-        """
-        loading_container.markdown(loading_html, unsafe_allow_html=True)
+    # 检查是否有文件
+    can_proceed = has_files_loaded()
 
-        # 验证所有必需配置
-        missing_items = []
-        if not neo4j_uri:
-            missing_items.append("Neo4j URI")
-        if not api_key:
-            missing_items.append("API Key")
-        if not ontology_content:
-            missing_items.append("YAML Schema Configuration")
-        if not chunks:
-            missing_items.append("Source Documents")
+    if not can_proceed:
+        st.warning("请先导入至少一个文件")
 
-        if missing_items:
-            loading_container.empty()
-            st.error(f"⚠️ 请完成以下配置: {', '.join(missing_items)}")
-            st.stop()
+    # 导航按钮（常驻，无文件时置灰）
+    action = render_navigation_buttons(
+        current_step=2,
+        can_proceed=can_proceed,
+        show_back=True,
+        next_help="请先导入至少一个文件" if not can_proceed else None
+    )
 
-        # 初始化数据库连接
-        db_handler = Neo4jHandler(neo4j_uri, neo4j_user, neo4j_pwd)
-        conn_success, _ = db_handler.test_connection()
+    if action == "next" and can_proceed:
+        st.session_state.completed_steps.append(2)
+        st.session_state.current_step = 3
+        st.rerun()
+    elif action == "back":
+        st.session_state.current_step = 1
+        st.rerun()
 
-        if not conn_success:
-            loading_container.empty()
-            st.error("数据库连接失败，无法继续。")
-            st.stop()
 
-        total_chunks = len(chunks)
-        total_triples = 0
+def render_config_step():
+    """步骤3: 配置"""
+    render_step_title(3)
+
+    # 渲染配置界面
+    config = render_config_section()
+
+    # 验证配置
+    is_valid, missing = validate_config(config)
+
+    if not is_valid:
+        st.warning(f"请完成以下配置: {', '.join(missing)}")
+
+    # 保存配置到state
+    st.session_state.config = config
+    save_config_to_state(config)
+    save_persisted_state()
+
+    # 导航按钮（常驻，配置不完整时置灰）
+    action = render_navigation_buttons(
+        current_step=3,
+        can_proceed=is_valid,
+        show_back=True,
+        next_label="开始抽取",
+        next_help="请先完成所有配置项" if not is_valid else None
+    )
+
+    if action == "next" and is_valid:
+        st.session_state.completed_steps.append(3)
+        st.session_state.current_step = 4
+        st.rerun()
+    elif action == "back":
+        st.session_state.current_step = 2
+        st.rerun()
+
+
+def render_process_step():
+    """步骤4: 抽取处理"""
+    render_step_title(4)
+
+    # 检查是否可以恢复处理
+    can_resume = progress_tracker.can_resume()
+
+    if can_resume:
+        st.info("检测到未完成的处理任务，可以继续处理。")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("继续处理", type="primary"):
+                # 只设置状态，让下一轮渲染进入处理流程
+                st.session_state.is_processing = True
+                st.session_state._resume_mode = True
+                st.rerun()
+        with col2:
+            if st.button("重新开始"):
+                progress_tracker.reset()
+                st.rerun()
+
+    elif not st.session_state.is_processing:
+        # 开始处理按钮
+        if st.button("开始知识抽取", type="primary", use_container_width=True):
+            # 只设置状态并刷新，不在按钮回调中执行耗时操作
+            st.session_state.is_processing = True
+            st.session_state._resume_mode = False
+            st.rerun()
+
+    else:
+        # 执行抽取处理（使用 st.status 显示实时进度）
+        resume = st.session_state.get('_resume_mode', False)
+        start_extraction_process(resume=resume)
+
+
+def start_extraction_process(resume: bool = False):
+    """开始抽取处理（使用 st.status 实时显示进度）"""
+    # 获取所有分块
+    chunks = get_all_chunks_for_processing()
+
+    if not chunks:
+        st.error("没有可处理的文本块")
+        st.session_state.is_processing = False
+        return
+
+    # 初始化进度
+    if not resume:
+        progress_tracker.reset()
+        progress_tracker.start(
+            total_files=len(set(c[0] for c in chunks)),
+            total_chunks=len(chunks)
+        )
+
+    # 获取配置
+    config = st.session_state.config
+    if not config or not config.get('llm'):
+        st.error("配置信息缺失，请返回配置页重新设置")
+        st.session_state.is_processing = False
+        return
+
+    llm_config_dict = config['llm']
+
+    # 创建LLM配置
+    try:
+        llm_config = LLMConfig(
+            api_endpoint=llm_config_dict['api_endpoint'],
+            api_key=llm_config_dict['api_key'],
+            model_name=llm_config_dict['model_name'],
+            vendor_type=llm_config_dict.get('vendor_type', 'openai_compatible'),
+            provider=llm_config_dict.get('provider', 'custom'),
+            temperature=llm_config_dict.get('temperature', 0.1),
+            max_tokens=llm_config_dict.get('max_tokens', 2048)
+        )
+    except (ValueError, KeyError) as e:
+        _show_error(f"LLM 配置无效: {_friendly_error(e)}", f"技术详情: {e}")
+        st.session_state.is_processing = False
+        return
+
+    # 初始化Neo4j连接（自动审核模式）
+    neo4j_manager = None
+    if config.get('review_mode') == 'auto':
+        neo4j_config = config.get('neo4j', {})
+        if not neo4j_config.get('password'):
+            st.error("Neo4j 密码未配置")
+            st.session_state.is_processing = False
+            return
+        neo4j_manager = Neo4jManager(
+            neo4j_config['uri'],
+            neo4j_config['user'],
+            neo4j_config['password']
+        )
+
+    # 预解析本体 + 创建复用的 LLM 客户端（避免每分块新建连接泄漏文件描述符）
+    extraction_ctx = None
+    try:
+        extraction_ctx = prepare_extraction(st.session_state.schema_yaml, llm_config)
+    except Exception as e:
+        st.error(f"初始化抽取失败：{e}")
+        st.session_state.is_processing = False
+        if neo4j_manager:
+            neo4j_manager.close()
+        return
+
+    # 使用 st.status 显示实时进度
+    progress = progress_tracker.get_progress()
+    with st.status("正在抽取知识...", expanded=True) as status:
+        # 进度条
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        stats_cols = st.columns(4)
+        processed_metric = stats_cols[0].empty()
+        triples_metric = stats_cols[1].empty()
+        avg_metric = stats_cols[2].empty()
+        time_metric = stats_cols[3].empty()
+
+        chunk_errors = 0      # 抽取失败的分块数
+        write_failures = 0    # 写入 Neo4j 失败的分块数
 
         try:
-            # 重置进度状态
-            st.session_state.processing_progress = 0
-            st.session_state.current_chunk = None
-            st.session_state.current_chunk_content = None
-            st.session_state.current_triples = None
+            # 处理每个分块
+            pending_chunks = chunks if not resume else [
+                c for c in chunks
+                if c[2] in progress_tracker.get_pending_chunks()
+            ]
 
-            # 等待加载条完成动画
-            import time
+            for file_id, file_name, chunk_index, chunk_content in pending_chunks:
+                # 更新进度
+                progress_tracker.update_chunk_start(chunk_index, file_name, file_id)
 
-            time.sleep(1)  # 等待1秒让加载条完成加载动画
+                # 更新UI
+                p = progress_tracker.get_progress()
+                pct = p.progress_percent / 100
+                progress_bar.progress(pct)
+                status_text.text(f"正在处理: {file_name} · 第 {chunk_index + 1}/{p.total_chunks} 个文本块")
+                processed_metric.metric("已处理", f"{p.processed_chunks}/{p.total_chunks}")
+                triples_metric.metric("三元组", p.total_triples)
+                if p.processed_chunks > 0:
+                    avg_metric.metric("平均", f"{p.total_triples / p.processed_chunks:.1f}/块")
+                    # 预估剩余时间：基于已处理分块的平均耗时
+                    avg_time = p.elapsed_time / p.processed_chunks
+                    remaining = p.total_chunks - p.processed_chunks
+                    eta_sec = remaining * avg_time
+                    if eta_sec < 60:
+                        eta_str = f"{int(eta_sec)}秒"
+                    elif eta_sec < 3600:
+                        eta_str = f"{int(eta_sec / 60)}分{int(eta_sec % 60)}秒"
+                    else:
+                        eta_str = f"{int(eta_sec / 3600)}时{int((eta_sec % 3600) / 60)}分"
+                    time_metric.metric("耗时 / 预计剩余", f"{p.elapsed_time_str} / {eta_str}")
+                else:
+                    time_metric.metric("耗时", p.elapsed_time_str)
 
-            # 初始化完成，显示初始处理界面
-            loading_container.empty()
-
-            # 实时更新进度显示
-            with progress_container.container():
-                st.markdown("---")
-                # 显示处理进度
-                progress_col1, progress_col2 = st.columns([1, 3])
-                with progress_col1:
-                    st.metric("处理进度", f"{st.session_state.processing_progress}%")
-                with progress_col2:
-                    st.progress(st.session_state.processing_progress / 100)
-                st.info("📄 准备开始处理文本块...")
-                st.write("正在初始化处理环境，请稍候...")
-
-            # 使用智能切分的文本块进行处理
-            for i, chunk in enumerate(chunks):
-                # 更新进度信息
-                progress_percent = int((i + 1) / total_chunks * 100)
-                st.session_state.processing_progress = progress_percent
-                st.session_state.current_chunk = f"第 {i + 1}/{total_chunks} 块"
-
-                # 保存当前文本块内容用于显示
-                st.session_state.current_chunk_content = chunk
-                st.session_state.current_triples = None
-
-                # 实时更新进度显示（开始处理新块）
-                with progress_container.container():
-                    st.markdown("---")
-                    # 显示处理进度
-                    progress_col1, progress_col2 = st.columns([1, 3])
-                    with progress_col1:
-                        st.metric("处理进度", f"{st.session_state.processing_progress}%")
-                    with progress_col2:
-                        st.progress(st.session_state.processing_progress / 100)
-
-                    # 显示当前处理的文本块信息
-                    st.info(f"📄 正在处理文本块: {st.session_state.current_chunk}")
-
-                    # 显示当前文本块内容（限制长度）
-                    st.subheader("当前处理的文本内容")
-                    chunk_preview = st.session_state.current_chunk_content
-                    if len(chunk_preview) > 300:
-                        chunk_preview = chunk_preview[:300] + "..."
-                    st.markdown('<div class="chunk-container">', unsafe_allow_html=True)
-                    st.text_area("文本内容预览", chunk_preview, height=100, key=f"chunk_preview_{i}")
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    # 显示正在进行LLM抽取
-                    st.info("🧠 正在进行知识抽取...")
-                    st.write("请稍候，正在使用LLM分析文本内容并抽取三元组...")
-
-                # 1. LLM 抽取（耗时操作）
-                triples = process_text_with_llm(chunk, ontology_content, api_key, selected_model_name)
+                # 调用LLM抽取（单块失败不终止整批，记录错误后继续下一块）
+                try:
+                    triples = extract_triples(chunk_content, extraction_ctx)
+                except ExtractionError as e:
+                    progress_tracker.update_chunk_error(chunk_index, str(e))
+                    chunk_errors += 1
+                    logging.error(f"分块 {chunk_index} ({file_name}) 抽取失败: {e}")
+                    continue
 
                 if triples:
-                    total_triples += len(triples)
-                    # 保存当前三元组用于显示
-                    st.session_state.current_triples = triples
+                    # 转换为字典格式
+                    triples_dict = [
+                        {
+                            'head': t.head,
+                            'head_type': t.head_type,
+                            'head_properties': t.head_properties,
+                            'relation': t.relation,
+                            'tail': t.tail,
+                            'tail_type': t.tail_type,
+                            'tail_properties': t.tail_properties
+                        }
+                        for t in triples
+                    ]
 
-                    # 实时更新进度显示（LLM抽取完成）
-                    with progress_container.container():
-                        st.markdown("---")
-                        # 显示处理进度
-                        progress_col1, progress_col2 = st.columns([1, 3])
-                        with progress_col1:
-                            st.metric("处理进度", f"{st.session_state.processing_progress}%")
-                        with progress_col2:
-                            st.progress(st.session_state.processing_progress / 100)
+                    # 更新进度
+                    progress_tracker.update_chunk_complete(
+                        chunk_index,
+                        triples_dict,
+                        len(triples)
+                    )
 
-                        # 显示当前处理的文本块信息
-                        st.info(f"📄 正在处理文本块: {st.session_state.current_chunk}")
+                    # 自动审核模式：直接存入数据库（检查写入返回值，失败不静默）
+                    if config.get('review_mode') == 'auto' and neo4j_manager:
+                        cypher_queries = generate_cypher_safe(triples)
+                        ok = neo4j_manager.execute_cypher(cypher_queries)
+                        if not ok:
+                            write_failures += 1
+                            logging.error(f"分块 {chunk_index} ({file_name}) 写入 Neo4j 失败")
 
-                        # 显示当前文本块内容（限制长度）
-                        st.subheader("当前处理的文本内容")
-                        chunk_preview = st.session_state.current_chunk_content
-                        if len(chunk_preview) > 300:
-                            chunk_preview = chunk_preview[:300] + "..."
-                        st.markdown('<div class="chunk-container">', unsafe_allow_html=True)
-                        st.text_area("文本内容预览", chunk_preview, height=100, key=f"chunk_preview_{i}_2")
-                        st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    progress_tracker.update_chunk_complete(chunk_index, [], 0)
 
-                        # 显示抽取的三元组信息
-                        st.subheader("抽取的三元组")
-                        for j, triple in enumerate(triples):
-                            # 美化三元组显示
-                            triple_html = f"""
-                            <div class="triple-card" style="animation-delay: {j * 0.1}s;">
-                                <div class="triple-content">
-                                    <div class="entity">
-                                        <div class="entity-name">{triple.head}</div>
-                                        <div class="entity-type">{triple.head_type}</div>
-                                        <div class="entity-properties">
-                                            {', '.join([f'{k}: {v}' for k, v in triple.head_properties.items()])}
-                                        </div>
-                                    </div>
-                                    <div class="relation">{triple.relation}</div>
-                                    <div class="entity">
-                                        <div class="entity-name">{triple.tail}</div>
-                                        <div class="entity-type">{triple.tail_type}</div>
-                                        <div class="entity-properties">
-                                            {', '.join([f'{k}: {v}' for k, v in triple.tail_properties.items()])}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            """
-                            st.markdown(triple_html, unsafe_allow_html=True)
+            # 完成处理
+            progress_tracker.complete()
 
-                        # 显示正在执行Cypher
-                        st.info("🗄️ 正在保存到数据库...")
-                        st.write("正在生成并执行Cypher查询，将知识图谱保存到Neo4j数据库...")
+            # 更新最终进度
+            p = progress_tracker.get_progress()
+            progress_bar.progress(1.0)
+            status_text.text("处理完成！")
+            processed_metric.metric("已处理", f"{p.total_chunks}/{p.total_chunks}")
+            triples_metric.metric("三元组", p.total_triples)
+            if p.total_chunks > 0:
+                avg_metric.metric("平均", f"{p.total_triples / p.total_chunks:.1f}/块")
+            time_metric.metric("耗时", p.elapsed_time_str)
 
-                    # 2. 生成并执行 Cypher（耗时操作）
-                    cypher_queries = generate_cypher(triples)
-                    db_handler.execute_cypher(cypher_queries)
+            status.update(label="知识抽取完成", state="complete", expanded=False)
 
-                    # 添加短暂延迟以便用户能看到处理内容
-                    import time
+            # 设置完成状态
+            st.session_state.is_processing = False
+            st.session_state.processing_result = p.get_statistics()
 
-                    time.sleep(0.5)
+            # 部分失败友好提示（不阻断，已成功处理的部分仍可用）
+            if chunk_errors or write_failures:
+                parts = []
+                if chunk_errors:
+                    parts.append(f"{chunk_errors} 个分块抽取失败")
+                if write_failures:
+                    parts.append(f"{write_failures} 个分块写入数据库失败")
+                st.warning("部分分块处理失败：" + "，".join(parts) + "，已跳过；其余分块已成功处理。")
 
-            # 保存构建结果到session_state
-            st.session_state.build_success = True
-            st.session_state.build_error = None
-            st.session_state.build_stats = {
-                "total_chunks": total_chunks,
-                "total_triples": total_triples,
-                "efficiency": round(total_triples / total_chunks, 2) if total_chunks > 0 else 0
-            }
-            # 清空当前处理信息
-            st.session_state.current_chunk = None
-            st.session_state.processing_progress = 0
-            st.session_state.current_chunk_content = None
-            st.session_state.current_triples = None
-
-            # 处理完成，清空进度容器并立即显示结果
-            progress_container.empty()
-
-            # 显示最终结果
-            with result_container.container():
-                st.success(
-                    f"✅ 任务完成！共处理 {st.session_state.build_stats['total_chunks']} 个语义块，提取并入库了 {st.session_state.build_stats['total_triples']} 个三元组。")
-
-                # 显示统计信息
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("处理块数", st.session_state.build_stats['total_chunks'])
-                with col2:
-                    st.metric("总三元组数", st.session_state.build_stats['total_triples'])
-                with col3:
-                    st.metric("平均效率", f"{st.session_state.build_stats['efficiency']} 三元组/块")
+            # 根据审核模式决定下一步
+            if config.get('review_mode') == 'manual':
+                st.session_state.current_step = 5
+            else:
+                st.session_state.completed_steps.append(5)
+                st.session_state.current_step = 6
 
         except Exception as e:
-            st.session_state.build_success = False
-            st.session_state.build_error = str(e)
-            st.session_state.build_stats = None
-            import traceback
+            progress_tracker.error(str(e))
+            friendly = _friendly_error(e)
+            status.update(label=f"处理出错: {friendly}", state="error", expanded=True)
+            _show_error(f"处理出错: {friendly}", f"技术详情: {e}")
+            st.session_state.is_processing = False
 
-            st.session_state.build_traceback = traceback.format_exc()
-            # 清空当前处理信息
-            st.session_state.current_chunk = None
-            st.session_state.processing_progress = 0
-            st.session_state.current_chunk_content = None
-            st.session_state.current_triples = None
-
-            # 异常情况下，清空进度容器并立即显示错误
-            progress_container.empty()
-
-            # 显示最终结果
-            with result_container.container():
-                st.error(f"❌ 处理过程中发生错误: {st.session_state.build_error}")
-                if st.session_state.build_traceback:
-                    st.code(st.session_state.build_traceback)
         finally:
-            db_handler.close()
-            # 重置进度状态
-            st.session_state.current_chunk = None
-            st.session_state.processing_progress = 0
-            st.session_state.current_chunk_content = None
-            st.session_state.current_triples = None
-    else:
-        # 非构建状态下显示静态结果
-        with result_container.container():
-            if st.session_state.build_success is not None:
-                if st.session_state.build_success:
-                    st.success(
-                        f"✅ 任务完成！共处理 {st.session_state.build_stats['total_chunks']} 个语义块，提取并入库了 {st.session_state.build_stats['total_triples']} 个三元组。")
+            if neo4j_manager:
+                neo4j_manager.close()
+            if extraction_ctx is not None:
+                extraction_ctx.close()
 
-                    # 显示统计信息
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("处理块数", st.session_state.build_stats['total_chunks'])
-                    with col2:
-                        st.metric("总三元组数", st.session_state.build_stats['total_triples'])
-                    with col3:
-                        st.metric("平均效率", f"{st.session_state.build_stats['efficiency']} 三元组/块")
-                else:
-                    st.error(f"❌ 处理过程中发生错误: {st.session_state.build_error}")
-                    if st.session_state.build_traceback:
-                        st.code(st.session_state.build_traceback)
+    # 处理完成后自动跳转
+    if not st.session_state.is_processing:
+        st.session_state._resume_mode = False
+        st.rerun()
+
+
+def render_review_step():
+    """步骤5: 人工审核"""
+    render_step_title(5)
+
+    # 获取所有三元组
+    all_triples = progress_tracker.get_all_triples()
+
+    if not all_triples:
+        st.warning("没有需要审核的三元组")
+        st.session_state.current_step = 6
+        st.rerun()
+
+    # 初始化审核状态
+    if st.session_state.review_state is None:
+        st.session_state.review_state = init_review_state(all_triples)
+
+    review_state = st.session_state.review_state
+
+    # 渲染审核面板
+    action, idx = render_review_panel(review_state)
+
+    # 编辑态切换：点击"编辑" -> 进入编辑（状态已由面板设置）
+    if action == 'edit_start':
+        st.rerun()
+
+    # 编辑保存：读取表单结果并应用
+    elif action == 'edit_save' and idx is not None:
+        edited = st.session_state.pop('_pending_edited_triple', None)
+        st.session_state.pop('review_editing_idx', None)
+        if edited:
+            apply_review_action(review_state, 'edit', idx, edited)
+            save_review_state(review_state)
+        st.rerun()
+
+    # 编辑取消
+    elif action == 'edit_cancel':
+        st.session_state.pop('review_editing_idx', None)
+        st.rerun()
+
+    # 单条确认/删除
+    elif action in ('confirm', 'delete') and idx is not None:
+        apply_review_action(review_state, action, idx)
+        save_review_state(review_state)
+        st.rerun()
+
+    # 批量操作（立即刷新统计）
+    elif action in ('confirm_all', 'skip_review'):
+        apply_review_action(review_state, action, None)
+        save_review_state(review_state)
+        st.rerun()
+
+    # 完成审核 -> 入库
+    elif action == 'complete':
+        try:
+            save_reviewed_triples(review_state)
+        except Exception as e:
+            _show_error(f"保存到 Neo4j 失败: {_friendly_error(e)}", f"技术详情: {e}")
+            return
+        st.session_state.completed_steps.append(5)
+        st.session_state.current_step = 6
+        st.rerun()
+
+
+def save_reviewed_triples(review_state: TripleReviewState):
+    """保存审核后的三元组到数据库"""
+    triples_to_save = review_state.get_triples_to_save()
+
+    if not triples_to_save:
+        return
+
+    # 获取配置
+    config = st.session_state.config
+    neo4j_config = config['neo4j']
+
+    # 使用Neo4jManager
+    with Neo4jManager(
+        neo4j_config['uri'],
+        neo4j_config['user'],
+        neo4j_config['password']
+    ) as neo4j_manager:
+        # 转换为KnowledgeGraphTriple对象
+        triples_obj = []
+        for t_dict in triples_to_save:
+            triple_obj = KnowledgeGraphTriple(
+                head=t_dict['head'],
+                head_type=t_dict['head_type'],
+                head_properties=t_dict['head_properties'],
+                relation=t_dict['relation'],
+                tail=t_dict['tail'],
+                tail_type=t_dict['tail_type'],
+                tail_properties=t_dict['tail_properties']
+            )
+            triples_obj.append(triple_obj)
+
+        # 生成安全的Cypher查询
+        cypher_queries = generate_cypher_safe(triples_obj)
+        ok = neo4j_manager.execute_cypher(cypher_queries)
+        if not ok:
+            # 写入失败（连接/认证/部分查询失败）时抛错，由调用方提示用户，
+            # 避免误以为已保存而跳转到完成页（静默数据丢失）。
+            raise RuntimeError("部分三元组写入 Neo4j 失败，请检查数据库连接、认证信息与服务状态后重试。")
+
+
+def render_complete_step():
+    """步骤6: 完成"""
+    render_step_title(6)
+
+    # 获取统计
+    stats = st.session_state.processing_result or progress_tracker.get_statistics()
+
+    # 渲染完成页面
+    action = render_completion_page(stats)
+
+    if action == "restart":
+        # 重置所有状态
+        reset_all_state()
+        st.rerun()
+
+
+def reset_all_state():
+    """重置所有状态"""
+    st.session_state.current_step = 0
+    st.session_state.completed_steps = []
+    st.session_state.schema_config = None
+    st.session_state.schema_yaml = ""
+    st.session_state.config = None
+    st.session_state.is_processing = False
+    st.session_state.processing_result = None
+    st.session_state.review_state = None
+    st.session_state.llm_config = None
+    # 清理审核编辑态
+    st.session_state.pop('review_editing_idx', None)
+    st.session_state.pop('_pending_edited_triple', None)
+
+    progress_tracker.reset()
+    file_manager.clear_all()
+    state_manager.clear()
+
+
+# ==================== 运行应用 ====================
+if __name__ == "__main__":
+    main()
