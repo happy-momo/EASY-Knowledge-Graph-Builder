@@ -1,7 +1,7 @@
 # KG AI Builder 🧠 → 🕸️
 
 <p align="center">
-  <strong>从文本到知识图谱的智能转换 — AI-Powered Knowledge Graph Builder</strong>
+  <strong>AI-Powered Knowledge Graph Builder — Transform Text into Structured Knowledge</strong>
 </p>
 
 <p align="center">
@@ -26,38 +26,30 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License">
   </a>
-  <a href="https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/blob/dev/README.md">
-    <img src="https://img.shields.io/badge/README-中文-English-blue?style=flat-square" alt="Bilingual">
+  <a href="README.zh-CN.md">
+    <img src="https://img.shields.io/badge/Language-中文-blue?style=flat-square" alt="Chinese">
   </a>
 </p>
 
 ---
 
-## 📋 目录 | Table of Contents
+## 📋 Table of Contents
 
-- [项目简介 | Introduction](#-项目简介--introduction)
-- [功能特点 | Features](#-功能特点--features)
-- [架构概览 | Architecture](#-架构概览--architecture)
-- [快速开始 | Quick Start](#-快速开始--quick-start)
-- [配置指南 | Configuration Guide](#-配置指南--configuration-guide)
-- [使用指南 | Usage Guide](#-使用指南--usage-guide)
-- [项目结构 | Project Structure](#-项目结构--project-structure)
-- [开发指南 | Development Guide](#-开发指南--development-guide)
-- [常见问题 | FAQ](#-常见问题--faq)
-- [贡献指南 | Contributing](#-贡献指南--contributing)
-- [许可证 | License](#-许可证--license)
+- [Introduction](#-introduction)
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Quick Start](#-quick-start)
+- [Configuration Guide](#-configuration-guide)
+- [Usage Guide](#-usage-guide)
+- [Project Structure](#-project-structure)
+- [Development Guide](#-development-guide)
+- [FAQ](#-faq)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
-## 📖 项目简介 | Introduction
-
-### 中文
-
-**KG AI Builder** 是一个强大的 AI 驱动知识图谱构建工具，能够将非结构化文本（如 PDF、Word、Excel、TXT 文档）自动转换为结构化的知识图谱。通过结合大语言模型（LLM）的文本理解能力和 Neo4j 图数据库的存储优势，实现从原始文本到语义网络的自动化转换。
-
-无论是科研文献分析、企业文档管理，还是知识库构建，KG AI Builder 都能帮助您快速、高效地从海量文本中提取有价值的结构化知识。
-
-### English
+## 📖 Introduction
 
 **KG AI Builder** is a powerful AI-driven knowledge graph construction tool that automatically converts unstructured text (PDF, Word, Excel, TXT) into structured knowledge graphs. By combining the text understanding capabilities of Large Language Models (LLMs) with the storage advantages of Neo4j graph database, it achieves automated transformation from raw text to semantic networks.
 
@@ -65,32 +57,14 @@ Whether for scientific literature analysis, enterprise document management, or k
 
 ---
 
-## ✨ 功能特点 | Features
-
-### 中文
-
-| 功能 | 说明 |
-|------|------|
-| 🎯 **多模型支持** | 兼容智谱AI GLM、OpenAI GPT、Anthropic Claude、Google Gemini、阿里云通义千问、DeepSeek 等主流 LLM |
-| 🚀 **一键部署** | 提供 Docker Compose 配置，一条命令即可启动完整服务（含 Neo4j 数据库） |
-| 📊 **可视化界面** | 基于 Streamlit 构建的直观 Web 界面，步骤式引导，操作简单 |
-| 📚 **多格式文档** | 支持 PDF、DOCX、XLSX、TXT 格式，单文件或文件夹批量导入 |
-| 🔗 **智能抽取** | 自动从文本中提取实体、关系和属性，构建 RDF 三元组 |
-| 📝 **Schema 定义** | 支持预设模板、YAML 上传、手动输入三种方式定义本体 Schema |
-| 🗄️ **Neo4j 集成** | 与 Neo4j 图数据库无缝集成，支持图结构可视化浏览 |
-| ⚡ **实时进度** | 处理进度实时显示，支持断点续传 |
-| 🎨 **结构图预览** | 在抽取前即可预览 Schema 结构图，直观了解实体关系 |
-| ✅ **审核机制** | 支持自动和人工两种审核模式，确保数据质量 |
-| 🐳 **跨平台** | 支持 Docker 部署，Windows / macOS / Linux 均可运行 |
-
-### English
+## ✨ Features
 
 | Feature | Description |
 |---------|-------------|
-| 🎯 **Multi-Model** | Supports ZhipuAI GLM, OpenAI GPT, Anthropic Claude, Google Gemini, Alibaba Qwen, DeepSeek and more |
-| 🚀 **One-Click Deploy** | Docker Compose config included — one command starts the full stack (app + Neo4j) |
-| 📊 **Visual UI** | Intuitive Streamlit-based web interface with step-by-step guidance |
-| 📚 **Multi-Format Docs** | PDF, DOCX, XLSX, TXT — single file or batch folder import |
+| 🎯 **Multi-Model Support** | Compatible with ZhipuAI GLM, OpenAI GPT, Anthropic Claude, Google Gemini, Alibaba Qwen, DeepSeek and more |
+| 🚀 **One-Click Deploy** | Docker Compose included — one command starts the full stack (app + Neo4j) |
+| 📊 **Visual Interface** | Intuitive Streamlit-based web UI with step-by-step guidance |
+| 📚 **Multi-Format Documents** | PDF, DOCX, XLSX, TXT — single file or batch folder import |
 | 🔗 **Smart Extraction** | Automatically extracts entities, relationships, and attributes as RDF triples |
 | 📝 **Schema Definition** | Preset templates, YAML upload, or manual input for ontology definition |
 | 🗄️ **Neo4j Integration** | Seamless integration with Neo4j graph database for graph visualization |
@@ -101,7 +75,7 @@ Whether for scientific literature analysis, enterprise document management, or k
 
 ---
 
-## 🏗️ 架构概览 | Architecture
+## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -138,174 +112,174 @@ Whether for scientific literature analysis, enterprise document management, or k
 
 ---
 
-## 🚀 快速开始 | Quick Start
+## 🚀 Quick Start
 
-### 方式一：Docker Compose（推荐）| Docker Compose (Recommended)
+### Option 1: Docker Compose (Recommended)
 
-这是最快捷的启动方式，一条命令即可启动完整服务（包括 Neo4j 数据库）。
+The fastest way to get started — one command launches the full stack (including Neo4j).
 
-**前置要求 | Prerequisites:**
+**Prerequisites:**
 
 - [Docker](https://docs.docker.com/get-docker/) (24.0+)
 - [Docker Compose](https://docs.docker.com/compose/install/) (v2.0+)
 
-**步骤 | Steps:**
+**Steps:**
 
 ```bash
-# 1. 克隆项目
+# 1. Clone the repository
 git clone https://github.com/happy-momo/EASY-Knowledge-Graph-Builder.git
 cd EASY-Knowledge-Graph-Builder
 
-# 2. 配置环境变量（复制并编辑 .env 文件）
+# 2. Configure environment variables
 cp .env.example .env
-# 编辑 .env 文件，填入您的 LLM API Key（至少一个）
+# Edit .env — fill in at least one LLM API Key
 
-# 3. 启动服务（首次启动需要下载镜像，约 2-5 分钟）
+# 3. Start services (first run downloads images, ~2-5 min)
 docker compose up -d
 
-# 4. 查看服务状态
+# 4. Check service status
 docker compose ps
 
-# 5. 访问应用
+# 5. Access the application
 # KG Builder:    http://localhost:8501
-# Neo4j Browser: http://localhost:7474  (用户名: neo4j, 密码: password123)
+# Neo4j Browser: http://localhost:7474  (user: neo4j, password: password123)
 ```
 
-**一键启动脚本（可选）：**
+**One-click startup script (optional):**
 
 ```bash
 chmod +x scripts/start.sh
 ./scripts/start.sh
 ```
 
-**常用命令：**
+**Common commands:**
 
 ```bash
-# 查看日志
+# View logs
 docker compose logs -f
 
-# 停止服务
+# Stop services
 docker compose down
 
-# 停止并删除数据卷（谨慎！会清除所有数据）
+# Stop and delete volumes (CAUTION: removes all data)
 docker compose down -v
 
-# 重启服务
+# Restart services
 docker compose restart
 
-# 更新到最新版本
+# Update to latest version
 git pull
 docker compose up -d --build
 ```
 
-### 方式二：本地运行 | Local Development
+### Option 2: Local Development
 
-**前置要求 | Prerequisites:**
+**Prerequisites:**
 
 - Python 3.10+
-- Neo4j 5.0+ (运行中)
-- 对应的 LLM API Key
+- Neo4j 5.0+ (running)
+- LLM API Key
 
-**步骤 | Steps:**
+**Steps:**
 
 ```bash
-# 1. 克隆项目
+# 1. Clone the repository
 git clone https://github.com/happy-momo/EASY-Knowledge-Graph-Builder.git
 cd EASY-Knowledge-Graph-Builder
 
-# 2. 创建虚拟环境（推荐）
+# 2. Create virtual environment (recommended)
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
 # venv\Scripts\activate   # Windows
 
-# 3. 安装依赖
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. 配置环境变量
+# 4. Configure environment
 cp .env.example .env
-# 编辑 .env 文件，填入 API Key 和 Neo4j 连接信息
+# Edit .env — fill in API Key and Neo4j connection info
 
-# 5. 启动应用
+# 5. Launch the application
 streamlit run app.py
 
-# 访问 http://localhost:8501
+# Access http://localhost:8501
 ```
 
 ---
 
-## 🔧 配置指南 | Configuration Guide
+## 🔧 Configuration Guide
 
-### LLM 模型配置 | LLM Model Configuration
+### LLM Model Configuration
 
-KG AI Builder 支持双路由架构，自动适配不同 LLM 提供商的 API 格式。
+KG AI Builder uses a dual-route architecture that automatically adapts to different LLM provider API formats.
 
-#### 支持的模型 | Supported Models
+#### Supported Models
 
-| 提供商 | 环境变量 | 推荐模型 | 注册地址 |
-|--------|---------|---------|---------|
-| 智谱AI | `ZHIPU_API_KEY` | `glm-4-plus` | [open.bigmodel.cn](https://open.bigmodel.cn/) |
+| Provider | Environment Variable | Recommended Model | Registration |
+|----------|--------------------|-------------------|--------------|
+| ZhipuAI | `ZHIPU_API_KEY` | `glm-4-plus` | [open.bigmodel.cn](https://open.bigmodel.cn/) |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` | [platform.openai.com](https://platform.openai.com/) |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | [console.anthropic.com](https://console.anthropic.com/) |
 | Google | `GOOGLE_API_KEY` | `gemini-2.0-flash` | [makersuite.google.com](https://makersuite.google.com/) |
-| 阿里云 | `DASHSCOPE_API_KEY` | `qwen-plus` | [help.aliyun.com](https://help.aliyun.com/document_detail/2712195.html) |
+| Alibaba | `DASHSCOPE_API_KEY` | `qwen-plus` | [help.aliyun.com](https://help.aliyun.com/document_detail/2712195.html) |
 | DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` | [platform.deepseek.com](https://platform.deepseek.com/) |
 
-**配置方式：**
+**How to configure:**
 
-1. **环境变量方式（推荐 Docker 部署）**：在 `.env` 文件中设置 `XXX_API_KEY=your_key`
-2. **应用内输入**：启动后在 Web 界面的"配置连接"步骤中手动输入 API Key
+1. **Environment variables (recommended for Docker)**: Set `XXX_API_KEY=your_key` in `.env` file
+2. **In-app input**: Enter API Key manually in the "Configure Connection" step of the web UI
 
-### Neo4j 数据库配置 | Neo4j Database Configuration
+### Neo4j Database Configuration
 
-#### Docker Compose 环境（默认配置）
+#### Docker Compose Environment (default)
 
 ```
 URI:      bolt://neo4j:7687
-用户名:   neo4j
-密码:     password123
+Username:  neo4j
+Password:  password123
 ```
 
-#### 本地环境
+#### Local Environment
 
 ```
 URI:      bolt://localhost:7687
-用户名:   neo4j
-密码:     <您的密码>
+Username:  neo4j
+Password:  <your_password>
 ```
 
-> **注意**：首次使用 Neo4j 时，需要在 Neo4j Browser (http://localhost:7474) 中修改默认密码。
+> **Note**: On first Neo4j login, you'll need to change the default password via Neo4j Browser (http://localhost:7474).
 
-### 应用参数配置 | Application Parameters
+### Application Parameters
 
-| 参数 | 环境变量 | 默认值 | 说明 |
-|------|---------|-------|------|
-| 分块大小 | `CHUNK_SIZE` | 2000 | 文本分块的最大字符数 |
-| 最小分块 | `CHUNK_MIN_SIZE` | 500 | 文本分块的最小字符数 |
-| LLM 温度 | `LLM_TEMPERATURE` | 0.1 | 生成温度（0.0-1.0），越低越确定 |
+| Parameter | Env Variable | Default | Description |
+|-----------|-------------|---------|-------------|
+| Chunk Size | `CHUNK_SIZE` | 2000 | Maximum characters per text chunk |
+| Min Chunk | `CHUNK_MIN_SIZE` | 500 | Minimum characters per text chunk |
+| LLM Temp | `LLM_TEMPERATURE` | 0.1 | Generation temperature (0.0-1.0), lower = more deterministic |
 
 ---
 
-## 📖 使用指南 | Usage Guide
+## 📖 Usage Guide
 
-### 工作流程
+### Workflow
 
-KG AI Builder 采用步骤式引导设计，共分为 6 个步骤：
+KG AI Builder uses a step-by-step guided design with 6 steps:
 
 ```
-Schema 配置 → 文档导入 → 配置连接 → 抽取处理 → 审核入库 → 完成
+Schema Config → Document Import → Configure Connection → Extraction → Review & Save → Complete
 ```
 
-### 步骤 1：Schema 配置
+### Step 1: Schema Configuration
 
-定义知识图谱的本体结构，包括实体类型和关系类型。
+Define the ontology structure including entity types and relationship types.
 
-**三种配置方式：**
+**Three configuration methods:**
 
-1. **预设模板** — 选择内置模板（如"人物-组织"、"概念-关系"等），一键生成
-2. **上传 YAML 文件** — 上传自定义的 YAML Schema 文件
-3. **手动输入** — 在文本框中直接输入 YAML 格式的 Schema 定义
+1. **Preset Templates** — Choose built-in templates (e.g., "Person-Organization"), one-click generation
+2. **Upload YAML** — Upload a custom YAML Schema file
+3. **Manual Input** — Type YAML Schema directly in the text editor
 
-**Schema 示例：**
+**Schema Example:**
 
 ```yaml
 entities:
@@ -336,223 +310,211 @@ relationships:
     tail: "Location"
 ```
 
-> 💡 **提示**：配置完成后可以在"结构图"标签页中预览实体-关系图。
+> 💡 **Tip**: Preview the entity-relationship diagram in the "Structure Graph" tab after configuration.
 
-### 步骤 2：文档导入
+### Step 2: Document Import
 
-上传需要处理的文档。
+Upload documents for processing.
 
-**支持格式：**
-- 📄 **PDF** (.pdf) — 自动提取文本内容
-- 📝 **Word** (.docx) — 保留段落结构
-- 📊 **Excel** (.xlsx) — 读取所有工作表
-- 📃 **纯文本** (.txt) — 直接读取
+**Supported formats:**
+- 📄 **PDF** (.pdf) — automatic text extraction
+- 📝 **Word** (.docx) — preserves paragraph structure
+- 📊 **Excel** (.xlsx) — reads all worksheets
+- 📃 **Plain Text** (.txt) — direct reading
 
-**两种导入方式：**
-- **单文件上传** — 点击上传按钮选择文件
-- **文件夹导入** — 输入文件夹路径批量处理
+**Import methods:**
+- **Single file upload** — click to select a file
+- **Folder import** — enter a folder path for batch processing
 
-### 步骤 3：配置连接
+### Step 3: Configure Connection
 
-配置 LLM 模型和 Neo4j 数据库连接。
+Configure LLM model and Neo4j database connection.
 
-1. **选择 LLM 服务商** — 从下拉列表中选择
-2. **输入 API Key** — 粘贴您的 API Key（或使用 .env 文件中配置的）
-3. **指定模型名称** — 输入具体模型名称
-4. **测试连接** — 点击"测试连接"按钮验证配置
-5. **配置 Neo4j** — 输入 URI、用户名和密码
-6. **测试数据库连接** — 验证 Neo4j 是否可访问
+1. **Select LLM provider** — choose from the dropdown
+2. **Enter API Key** — paste your API Key (or use the one configured in `.env`)
+3. **Specify model name** — enter the exact model name
+4. **Test connection** — click "Test Connection" to verify
+5. **Configure Neo4j** — enter URI, username, and password
+6. **Test database connection** — verify Neo4j is accessible
 
-### 步骤 4：抽取处理
+### Step 4: Extraction
 
-系统自动将文档分块，并使用 LLM 逐块抽取三元组。
+The system automatically splits documents into chunks and extracts triples using LLM.
 
-- **实时进度条** — 显示当前处理进度和预估剩余时间
-- **处理日志** — 每块的处理状态实时更新
-- **断点续传** — 如果中断，已处理的结果不会丢失
+- **Real-time progress bar** — shows current progress and estimated remaining time
+- **Processing logs** — each chunk's status updates in real time
+- **Resume support** — if interrupted, processed results are preserved
 
-### 步骤 5：审核入库
+### Step 5: Review & Save
 
-**两种审核模式：**
+**Two review modes:**
 
-1. **自动审核** — 系统自动将所有抽取的三元组入库（适合信任 LLM 结果的场景）
-2. **人工审核** — 逐个查看三元组，确认/编辑/删除后入库（适合对数据质量要求高的场景）
+1. **Auto Review** — automatically saves all extracted triples (best when you trust the LLM results)
+2. **Manual Review** — review each triple individually, confirm/edit/delete before saving (recommended for high data quality requirements)
 
-审核完成点击"确认入库"。
+Click "Confirm Save" after review.
 
-### 步骤 6：完成
+### Step 6: Complete
 
-查看抽取统计信息：
-- 处理的文档数和分块数
-- 抽取的实体数、关系数、属性数
-- 处理耗时
+View extraction statistics:
+- Number of documents and chunks processed
+- Number of entities, relationships, and attributes extracted
+- Processing time
 
-> 🗄️ 在 Neo4j Browser (http://localhost:7474) 中查看知识图谱：
+> 🗄️ View the knowledge graph in Neo4j Browser (http://localhost:7474):
 > ```cypher
 > MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100
 > ```
 
 ---
 
-## 📁 项目结构 | Project Structure
+## 📁 Project Structure
 
 ```
 EASY-Knowledge-Graph-Builder/
-├── app.py                          # 主应用入口（Streamlit）
-├── Dockerfile                      # Docker 构建文件
-├── docker-compose.yml              # Docker Compose 配置（含 Neo4j）
-├── .env.example                    # 环境变量示例
-├── requirements.txt                # Python 依赖列表
+├── app.py                          # Main application entry (Streamlit)
+├── Dockerfile                      # Docker build file
+├── docker-compose.yml              # Docker Compose config (with Neo4j)
+├── .env.example                    # Environment variable example
+├── requirements.txt                # Python dependencies
 │
-├── components/                     # UI 组件
+├── components/                     # UI components
 │   ├── __init__.py
-│   ├── config_page.py              # 配置页面组件
-│   ├── file_import.py              # 文件导入组件
-│   ├── icons.py                    # SVG 图标库（跨浏览器兼容）
-│   ├── process_display.py          # 处理进度显示组件
-│   ├── review_panel.py             # 审核面板组件
-│   ├── schema_templates.py         # Schema 模板选择组件
-│   ├── step_navigation.py          # 步骤导航组件
-│   └── welcome_page.py             # 欢迎引导页组件
+│   ├── config_page.py              # Configuration page
+│   ├── file_import.py              # File import component
+│   ├── icons.py                    # SVG icon library (cross-browser)
+│   ├── process_display.py          # Progress display component
+│   ├── review_panel.py             # Review panel component
+│   ├── schema_templates.py         # Schema template selection
+│   ├── step_navigation.py          # Step navigation component
+│   └── welcome_page.py             # Welcome page component
 │
-├── config/                         # 配置
-│   └── app_config.py               # 应用配置（Schema模板、默认值）
+├── config/                         # Configuration
+│   └── app_config.py               # App config (schema templates, defaults)
 │
-├── utils/                          # 核心工具
-│   ├── cypher_generator.py         # Cypher 查询生成器
-│   ├── doc_loader.py               # 文档加载与分块
-│   ├── env_checker.py              # 环境变量检测
-│   ├── extractor.py                # LLM 三元组抽取引擎
-│   ├── file_manager.py             # 文件管理
-│   ├── folder_loader.py            # 文件夹加载
-│   ├── llm_config.py               # LLM 配置与双路由
-│   ├── neo4j_manager.py            # Neo4j 数据库操作
-│   ├── progress_tracker.py         # 进度追踪
-│   ├── schema_visualizer.py        # Schema 结构图可视化
-│   └── state_manager.py            # 状态管理
+├── utils/                          # Core utilities
+│   ├── cypher_generator.py         # Cypher query generator
+│   ├── doc_loader.py               # Document loading & chunking
+│   ├── env_checker.py              # Environment variable detection
+│   ├── extractor.py                # LLM triple extraction engine
+│   ├── file_manager.py             # File management
+│   ├── folder_loader.py            # Folder loading
+│   ├── llm_config.py               # LLM config & dual-route
+│   ├── neo4j_manager.py            # Neo4j database operations
+│   ├── progress_tracker.py         # Progress tracking
+│   ├── schema_visualizer.py        # Schema visualization
+│   └── state_manager.py            # State management
 │
-├── styles/                         # 样式
-│   └── main.css                    # 全局样式
+├── styles/                         # Styles
+│   └── main.css                    # Global styles
 │
-├── scripts/                        # 脚本
-│   └── start.sh                    # 一键启动脚本
+├── scripts/                        # Scripts
+│   └── start.sh                    # One-click startup script
 │
-├── tests/                          # 测试
-│   ├── conftest.py                 # pytest 夹具
-│   ├── test_core.py                # 核心功能测试
-│   └── test_new_features.py        # 新功能测试
+├── tests/                          # Tests
+│   ├── conftest.py                 # pytest fixtures
+│   ├── test_core.py                # Core functionality tests
+│   └── test_new_features.py        # New feature tests
 │
-└── .data/                          # 数据持久化（gitignore）
-    ├── session/                    # 会话状态
-    └── uploads/                    # 上传文件
+└── .data/                          # Data persistence (gitignored)
+    ├── session/                    # Session state
+    └── uploads/                    # Uploaded files
 ```
 
 ---
 
-## 💻 开发指南 | Development Guide
+## 💻 Development Guide
 
-### 环境搭建 | Setup
+### Setup
 
 ```bash
-# 克隆项目
+# Clone the repository
 git clone https://github.com/happy-momo/EASY-Knowledge-Graph-Builder.git
 cd EASY-Knowledge-Graph-Builder
 
-# 创建虚拟环境
+# Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
 
-# 安装开发依赖
+# Install dependencies
 pip install -r requirements.txt
-pip install pytest pytest-cov  # 测试依赖
+pip install pytest pytest-cov  # test dependencies
 
-# 启动开发服务器
+# Start development server
 streamlit run app.py
 ```
 
-### 运行测试 | Running Tests
+### Running Tests
 
 ```bash
-# 运行所有测试
+# Run all tests
 pytest tests/ -v
 
-# 带覆盖率报告
+# With coverage report
 pytest tests/ --cov=utils --cov=components --cov-report=term-missing -v
 
-# 运行特定测试
+# Run specific tests
 pytest tests/test_core.py -v -k "test_sanitize"
 ```
 
-### 代码风格 | Code Style
+### Code Style
 
-- Python: 遵循 [PEP 8](https://www.python.org/dev/peps/pep-0008/) 规范
-- 导入顺序: 标准库 → 第三方库 → 本地模块
-- 类型注解: 对函数参数和返回值使用类型注解
-- 文档字符串: 使用 Google 风格 docstring
+- Python: Follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) guidelines
+- Import order: standard library → third-party → local modules
+- Type hints: use type annotations for function parameters and return values
+- Docstrings: use Google-style docstrings
 
-### 构建 Docker 镜像 | Building Docker Image
+### Building Docker Image
 
 ```bash
-# 构建镜像
+# Build image
 docker build -t kg-builder .
 
-# 使用 Docker Compose 构建并启动
+# Build and start with Docker Compose
 docker compose up -d --build
 ```
 
 ---
 
-## ❓ 常见问题 | FAQ
+## ❓ FAQ
 
-### Docker 相关
+### Docker
 
-**Q: 启动时提示"端口已被占用"？**
-> 修改 `docker-compose.yml` 中的端口映射，如 `"8502:8501"`。
+**Q: Port already in use?**
+> Change the port mapping in `docker-compose.yml`, e.g., `"8502:8501"`.
 
-**Q: 如何查看 Neo4j 日志？**
+**Q: How to view Neo4j logs?**
 > ```bash
 > docker compose logs neo4j
 > ```
 
-**Q: 数据存在哪里？**
-> - Neo4j 数据存储在 Docker 卷 `kg-neo4j-data` 中
-> - 应用数据存储在 `.data/` 目录或卷 `kg-builder-data` 中
+**Q: Where is data stored?**
+> - Neo4j data: Docker volume `kg-neo4j-data`
+> - App data: `.data/` directory or volume `kg-builder-data`
 
-### LLM 相关
+### LLM
 
-**Q: 需要配置多个 API Key 吗？**
-> 不需要，只需要配置至少一个 LLM 提供商的 API Key 即可使用。
+**Q: Do I need to configure multiple API Keys?**
+> No, only one LLM provider API Key is needed.
 
-**Q: 抽取结果不准确怎么办？**
-> - 尝试使用更强大的模型（如 `gpt-4o` 替代 `gpt-4o-mini`）
-> - 调整 LLM 温度参数（降低到 0.05 增加确定性）
-> - 优化 Schema 定义，使实体和关系更明确
+**Q: Extraction results are inaccurate?**
+> - Try a more powerful model (e.g., `gpt-4o` instead of `gpt-4o-mini`)
+> - Lower the temperature (try 0.05 for more deterministic output)
+> - Refine the Schema definition for clearer entities and relationships
 
-### Neo4j 相关
+### Neo4j
 
-**Q: Neo4j Browser 无法访问？**
-> 确保 Neo4j 容器正常运行：`docker compose ps neo4j`
+**Q: Neo4j Browser is unreachable?**
+> Ensure the Neo4j container is running: `docker compose ps neo4j`
 
-**Q: 如何修改 Neo4j 密码？**
-> 1. 访问 http://localhost:7474
-> 2. 使用默认密码登录
-> 3. 执行 `ALTER CURRENT USER SET PASSWORD FROM '旧密码' TO '新密码'`
+**Q: How to change the Neo4j password?**
+> 1. Visit http://localhost:7474
+> 2. Log in with the default password
+> 3. Run `ALTER CURRENT USER SET PASSWORD FROM 'old_password' TO 'new_password'`
 
 ---
 
-## 🤝 贡献指南 | Contributing
-
-### 中文
-
-欢迎贡献！无论是新功能、bug 修复还是文档改进，都欢迎提交 Issue 和 Pull Request。
-
-1. **Fork** 本仓库
-2. 创建特性分支: `git checkout -b feature/AmazingFeature`
-3. 提交更改: `git commit -m 'Add some AmazingFeature'`
-4. 推送到分支: `git push origin feature/AmazingFeature`
-5. 打开 Pull Request
-
-### English
+## 🤝 Contributing
 
 Contributions are welcome! Whether it's a new feature, bug fix, or documentation improvement, please feel free to submit Issues and Pull Requests.
 
@@ -564,25 +526,22 @@ Contributions are welcome! Whether it's a new feature, bug fix, or documentation
 
 ---
 
-## 📄 许可证 | License
-
-本项目采用 MIT 许可证 — 详见 [LICENSE](LICENSE) 文件。
+## 📄 License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 致谢 | Acknowledgements
+## 🙏 Acknowledgements
 
-- 感谢 [Streamlit](https://streamlit.io/) — 强大的 Web 应用框架
-- 感谢 [LangChain](https://www.langchain.com/) — LLM 应用框架
-- 感谢 [Neo4j](https://neo4j.com/) — 领先的图数据库
-- 感谢所有贡献者和用户的反馈支持
+- [Streamlit](https://streamlit.io/) — The powerful web app framework
+- [LangChain](https://www.langchain.com/) — LLM application framework
+- [Neo4j](https://neo4j.com/) — Leading graph database
+- All contributors and users for their feedback and support
 
 ---
 
 <p align="center">
-  <strong>如果这个项目对您有帮助，请给它一个 ⭐️！</strong><br>
   <strong>If you find this project helpful, please give it a ⭐️!</strong>
 </p>
 
