@@ -16,6 +16,7 @@ htmlcov/
 .streamlit/secrets.toml
 .env
 .env.local
+.env.example
 *.log
-README.md
 tests/
+scripts/

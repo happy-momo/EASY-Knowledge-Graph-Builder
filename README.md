@@ -1,97 +1,311 @@
-# Knowledge Graph Builder
+# KG AI Builder 🧠 → 🕸️
 
-[![GitHub stars](https://img.shields.io/github/stars/happy-momo/EASY-Knowledge-Graph-Builder)](https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/happy-momo/EASY-Knowledge-Graph-Builder)](https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/network)
-[![GitHub issues](https://img.shields.io/github/issues/happy-momo/EASY-Knowledge-Graph-Builder)](https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/issues)
+<p align="center">
+  <strong>从文本到知识图谱的智能转换 — AI-Powered Knowledge Graph Builder</strong>
+</p>
 
-## 项目简介
+<p align="center">
+  <a href="https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/stargazers">
+    <img src="https://img.shields.io/github/stars/happy-momo/EASY-Knowledge-Graph-Builder?style=flat-square&logo=github" alt="GitHub stars">
+  </a>
+  <a href="https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/network">
+    <img src="https://img.shields.io/github/forks/happy-momo/EASY-Knowledge-Graph-Builder?style=flat-square&logo=github" alt="GitHub forks">
+  </a>
+  <a href="https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/issues">
+    <img src="https://img.shields.io/github/issues/happy-momo/EASY-Knowledge-Graph-Builder?style=flat-square&logo=github" alt="GitHub issues">
+  </a>
+  <a href="https://hub.docker.com/r/neo4j">
+    <img src="https://img.shields.io/badge/Neo4j-5.13-4581C3?style=flat-square&logo=neo4j" alt="Neo4j">
+  </a>
+  <a href="https://streamlit.io">
+    <img src="https://img.shields.io/badge/Streamlit-1.32-FF4B4B?style=flat-square&logo=streamlit" alt="Streamlit">
+  </a>
+  <a href="https://www.python.org">
+    <img src="https://img.shields.io/badge/Python-3.10-3776AB?style=flat-square&logo=python" alt="Python">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License">
+  </a>
+  <a href="https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/blob/dev/README.md">
+    <img src="https://img.shields.io/badge/README-中文-English-blue?style=flat-square" alt="Bilingual">
+  </a>
+</p>
 
-Knowledge Graph Builder 是一个强大的AI驱动知识图谱构建工具，能够将非结构化文本转换为结构化的知识图谱。通过结合大语言模型(LLM)的文本理解能力和图数据库的存储优势，实现从原始文本到语义网络的自动化转换。
+---
 
-## 功能特点
+## 📋 目录 | Table of Contents
 
-- 🎯 **多模型支持**：兼容多种主流LLM模型，包括智谱AI GLM系列、OpenAI GPT系列、Anthropic Claude系列、Google Gemini系列等
-- 📊 **可视化界面**：基于Streamlit构建的直观用户界面，支持步骤式操作
-- 📚 **文档处理**：支持多种文档格式的上传和解析（.txt, .docx等）
-- 🔗 **知识抽取**：自动从文本中提取实体、关系和属性，构建三元组
-- 📝 **Schema定义**：支持自定义本体Schema，规范知识图谱的结构
-- 🗄️ **图数据库集成**：与Neo4j无缝集成，实现知识的高效存储和查询
-- ⚡ **实时进度**：提供实时的处理进度和状态更新
+- [项目简介 | Introduction](#-项目简介--introduction)
+- [功能特点 | Features](#-功能特点--features)
+- [架构概览 | Architecture](#-架构概览--architecture)
+- [快速开始 | Quick Start](#-快速开始--quick-start)
+- [配置指南 | Configuration Guide](#-配置指南--configuration-guide)
+- [使用指南 | Usage Guide](#-使用指南--usage-guide)
+- [项目结构 | Project Structure](#-项目结构--project-structure)
+- [开发指南 | Development Guide](#-开发指南--development-guide)
+- [常见问题 | FAQ](#-常见问题--faq)
+- [贡献指南 | Contributing](#-贡献指南--contributing)
+- [许可证 | License](#-许可证--license)
 
-## 技术栈
+---
 
-- **前端框架**：Streamlit
-- **后端语言**：Python
-- **LLM框架**：LangChain
-- **图数据库**：Neo4j
-- **文档处理**：python-docx
-- **配置管理**：YAML
+## 📖 项目简介 | Introduction
 
-## 项目结构
+### 中文
+
+**KG AI Builder** 是一个强大的 AI 驱动知识图谱构建工具，能够将非结构化文本（如 PDF、Word、Excel、TXT 文档）自动转换为结构化的知识图谱。通过结合大语言模型（LLM）的文本理解能力和 Neo4j 图数据库的存储优势，实现从原始文本到语义网络的自动化转换。
+
+无论是科研文献分析、企业文档管理，还是知识库构建，KG AI Builder 都能帮助您快速、高效地从海量文本中提取有价值的结构化知识。
+
+### English
+
+**KG AI Builder** is a powerful AI-driven knowledge graph construction tool that automatically converts unstructured text (PDF, Word, Excel, TXT) into structured knowledge graphs. By combining the text understanding capabilities of Large Language Models (LLMs) with the storage advantages of Neo4j graph database, it achieves automated transformation from raw text to semantic networks.
+
+Whether for scientific literature analysis, enterprise document management, or knowledge base construction, KG AI Builder helps you quickly and efficiently extract valuable structured knowledge from massive amounts of text.
+
+---
+
+## ✨ 功能特点 | Features
+
+### 中文
+
+| 功能 | 说明 |
+|------|------|
+| 🎯 **多模型支持** | 兼容智谱AI GLM、OpenAI GPT、Anthropic Claude、Google Gemini、阿里云通义千问、DeepSeek 等主流 LLM |
+| 🚀 **一键部署** | 提供 Docker Compose 配置，一条命令即可启动完整服务（含 Neo4j 数据库） |
+| 📊 **可视化界面** | 基于 Streamlit 构建的直观 Web 界面，步骤式引导，操作简单 |
+| 📚 **多格式文档** | 支持 PDF、DOCX、XLSX、TXT 格式，单文件或文件夹批量导入 |
+| 🔗 **智能抽取** | 自动从文本中提取实体、关系和属性，构建 RDF 三元组 |
+| 📝 **Schema 定义** | 支持预设模板、YAML 上传、手动输入三种方式定义本体 Schema |
+| 🗄️ **Neo4j 集成** | 与 Neo4j 图数据库无缝集成，支持图结构可视化浏览 |
+| ⚡ **实时进度** | 处理进度实时显示，支持断点续传 |
+| 🎨 **结构图预览** | 在抽取前即可预览 Schema 结构图，直观了解实体关系 |
+| ✅ **审核机制** | 支持自动和人工两种审核模式，确保数据质量 |
+| 🐳 **跨平台** | 支持 Docker 部署，Windows / macOS / Linux 均可运行 |
+
+### English
+
+| Feature | Description |
+|---------|-------------|
+| 🎯 **Multi-Model** | Supports ZhipuAI GLM, OpenAI GPT, Anthropic Claude, Google Gemini, Alibaba Qwen, DeepSeek and more |
+| 🚀 **One-Click Deploy** | Docker Compose config included — one command starts the full stack (app + Neo4j) |
+| 📊 **Visual UI** | Intuitive Streamlit-based web interface with step-by-step guidance |
+| 📚 **Multi-Format Docs** | PDF, DOCX, XLSX, TXT — single file or batch folder import |
+| 🔗 **Smart Extraction** | Automatically extracts entities, relationships, and attributes as RDF triples |
+| 📝 **Schema Definition** | Preset templates, YAML upload, or manual input for ontology definition |
+| 🗄️ **Neo4j Integration** | Seamless integration with Neo4j graph database for graph visualization |
+| ⚡ **Real-Time Progress** | Live progress tracking with resume support |
+| 🎨 **Schema Preview** | Visualize entity-relationship diagrams before extraction |
+| ✅ **Review Modes** | Auto and manual review modes to ensure data quality |
+| 🐳 **Cross-Platform** | Docker support — runs on Windows, macOS, and Linux |
+
+---
+
+## 🏗️ 架构概览 | Architecture
 
 ```
-Knowledge-Graph-Builder/
-├── app.py                    # 主应用入口
-├── components/               # UI组件目录
-│   ├── __init__.py
-│   └── ui_components.py      # 自定义UI组件
-├── config/                   # 配置文件目录
-│   └── app_config.py         # 应用配置
-├── styles/                   # 样式文件目录
-│   ├── main.css              # 自定义CSS
-│   └── main.js               # 自定义JavaScript
-├── utils/                    # 工具函数目录
-│   ├── config_manager.py     # 配置管理
-│   ├── doc_loader.py         # 文档加载
-│   ├── graph_db.py           # 图数据库操作
-│   └── llm_extractor.py      # LLM抽取
-├── requirements.txt          # 依赖列表
-└── README.md                 # 项目说明
+┌─────────────────────────────────────────────────────────────┐
+│                    KG AI Builder                            │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │  Streamlit Web UI (app.py)                              ││
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  ││
+│  │  │ Schema   │ │  File    │ │  Config  │ │  Review  │  ││
+│  │  │  Config  │ │  Import  │ │  LLM+DB  │ │  Panel   │  ││
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘  ││
+│  └─────────────────────────────────────────────────────────┘│
+│                           │                                  │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │  Core Engine (utils/)                                   ││
+│  │  ┌────────────┐ ┌────────────┐ ┌──────────────────┐    ││
+│  │  │  Extractor │ │  Cypher    │ │  Neo4j Manager   │    ││
+│  │  │  (LLM)     │ │  Generator │ │  (DB Operations) │    ││
+│  │  └────────────┘ └────────────┘ └──────────────────┘    ││
+│  │  ┌────────────┐ ┌────────────┐ ┌──────────────────┐    ││
+│  │  │  Doc       │ │  File     │ │  Progress        │    ││
+│  │  │  Loader    │ │  Manager  │ │  Tracker         │    ││
+│  │  └────────────┘ └────────────┘ └──────────────────┘    ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+         │                                        │
+         ▼                                        ▼
+┌──────────────┐                     ┌──────────────────┐
+│   LLM API    │                     │  Neo4j Database  │
+│ (OpenAI/     │                     │  (Graph Storage)  │
+│  Zhipu/      │                     │  Port 7474/7687  │
+│  Claude/...) │                     └──────────────────┘
+└──────────────┘
 ```
 
-## 快速开始
+---
 
-### 环境要求
+## 🚀 快速开始 | Quick Start
 
-- Python 3.8+
-- Neo4j 4.0+
+### 方式一：Docker Compose（推荐）| Docker Compose (Recommended)
 
-### 安装依赖
+这是最快捷的启动方式，一条命令即可启动完整服务（包括 Neo4j 数据库）。
+
+**前置要求 | Prerequisites:**
+
+- [Docker](https://docs.docker.com/get-docker/) (24.0+)
+- [Docker Compose](https://docs.docker.com/compose/install/) (v2.0+)
+
+**步骤 | Steps:**
 
 ```bash
+# 1. 克隆项目
+git clone https://github.com/happy-momo/EASY-Knowledge-Graph-Builder.git
+cd EASY-Knowledge-Graph-Builder
+
+# 2. 配置环境变量（复制并编辑 .env 文件）
+cp .env.example .env
+# 编辑 .env 文件，填入您的 LLM API Key（至少一个）
+
+# 3. 启动服务（首次启动需要下载镜像，约 2-5 分钟）
+docker compose up -d
+
+# 4. 查看服务状态
+docker compose ps
+
+# 5. 访问应用
+# KG Builder:    http://localhost:8501
+# Neo4j Browser: http://localhost:7474  (用户名: neo4j, 密码: password123)
+```
+
+**一键启动脚本（可选）：**
+
+```bash
+chmod +x scripts/start.sh
+./scripts/start.sh
+```
+
+**常用命令：**
+
+```bash
+# 查看日志
+docker compose logs -f
+
+# 停止服务
+docker compose down
+
+# 停止并删除数据卷（谨慎！会清除所有数据）
+docker compose down -v
+
+# 重启服务
+docker compose restart
+
+# 更新到最新版本
+git pull
+docker compose up -d --build
+```
+
+### 方式二：本地运行 | Local Development
+
+**前置要求 | Prerequisites:**
+
+- Python 3.10+
+- Neo4j 5.0+ (运行中)
+- 对应的 LLM API Key
+
+**步骤 | Steps:**
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/happy-momo/EASY-Knowledge-Graph-Builder.git
+cd EASY-Knowledge-Graph-Builder
+
+# 2. 创建虚拟环境（推荐）
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+# venv\Scripts\activate   # Windows
+
+# 3. 安装依赖
 pip install -r requirements.txt
+
+# 4. 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，填入 API Key 和 Neo4j 连接信息
+
+# 5. 启动应用
+streamlit run app.py
+
+# 访问 http://localhost:8501
 ```
 
-### 配置
+---
 
-1. **Neo4j数据库配置**
-   - 安装并启动Neo4j数据库
-   - 默认配置：URI: `bolt://localhost:7687`，用户名: `neo4j`，密码: `password`
-   - 可在应用中修改数据库配置
+## 🔧 配置指南 | Configuration Guide
 
-2. **LLM API Key配置**
-   - 在应用中根据选择的LLM模型输入对应的API Key
+### LLM 模型配置 | LLM Model Configuration
 
-### 启动项目
+KG AI Builder 支持双路由架构，自动适配不同 LLM 提供商的 API 格式。
 
-```bash
-python -m streamlit run app.py
+#### 支持的模型 | Supported Models
+
+| 提供商 | 环境变量 | 推荐模型 | 注册地址 |
+|--------|---------|---------|---------|
+| 智谱AI | `ZHIPU_API_KEY` | `glm-4-plus` | [open.bigmodel.cn](https://open.bigmodel.cn/) |
+| OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` | [platform.openai.com](https://platform.openai.com/) |
+| Anthropic | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | [console.anthropic.com](https://console.anthropic.com/) |
+| Google | `GOOGLE_API_KEY` | `gemini-2.0-flash` | [makersuite.google.com](https://makersuite.google.com/) |
+| 阿里云 | `DASHSCOPE_API_KEY` | `qwen-plus` | [help.aliyun.com](https://help.aliyun.com/document_detail/2712195.html) |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` | [platform.deepseek.com](https://platform.deepseek.com/) |
+
+**配置方式：**
+
+1. **环境变量方式（推荐 Docker 部署）**：在 `.env` 文件中设置 `XXX_API_KEY=your_key`
+2. **应用内输入**：启动后在 Web 界面的"配置连接"步骤中手动输入 API Key
+
+### Neo4j 数据库配置 | Neo4j Database Configuration
+
+#### Docker Compose 环境（默认配置）
+
+```
+URI:      bolt://neo4j:7687
+用户名:   neo4j
+密码:     password123
 ```
 
-访问 `http://localhost:8502` 即可使用应用。
+#### 本地环境
 
-## 使用指南
+```
+URI:      bolt://localhost:7687
+用户名:   neo4j
+密码:     <您的密码>
+```
 
-### 步骤1：配置Schema
+> **注意**：首次使用 Neo4j 时，需要在 Neo4j Browser (http://localhost:7474) 中修改默认密码。
 
-- **方式1：上传Schema文件**
-  - 上传YAML格式的本体定义文件
-  - 示例格式见 `config.yaml`
+### 应用参数配置 | Application Parameters
 
-- **方式2：手动输入Schema**
-  - 在文本框中输入YAML格式的本体定义
+| 参数 | 环境变量 | 默认值 | 说明 |
+|------|---------|-------|------|
+| 分块大小 | `CHUNK_SIZE` | 2000 | 文本分块的最大字符数 |
+| 最小分块 | `CHUNK_MIN_SIZE` | 500 | 文本分块的最小字符数 |
+| LLM 温度 | `LLM_TEMPERATURE` | 0.1 | 生成温度（0.0-1.0），越低越确定 |
 
-本体Schema定义示例：
+---
+
+## 📖 使用指南 | Usage Guide
+
+### 工作流程
+
+KG AI Builder 采用步骤式引导设计，共分为 6 个步骤：
+
+```
+Schema 配置 → 文档导入 → 配置连接 → 抽取处理 → 审核入库 → 完成
+```
+
+### 步骤 1：Schema 配置
+
+定义知识图谱的本体结构，包括实体类型和关系类型。
+
+**三种配置方式：**
+
+1. **预设模板** — 选择内置模板（如"人物-组织"、"概念-关系"等），一键生成
+2. **上传 YAML 文件** — 上传自定义的 YAML Schema 文件
+3. **手动输入** — 在文本框中直接输入 YAML 格式的 Schema 定义
+
+**Schema 示例：**
 
 ```yaml
 entities:
@@ -99,11 +313,16 @@ entities:
     properties:
       - "name"
       - "age"
-      - "birthDate"
+      - "occupation"
   - name: "Organization"
     properties:
       - "name"
       - "industry"
+      - "foundedYear"
+  - name: "Location"
+    properties:
+      - "name"
+      - "country"
 
 relationships:
   - head: "Person"
@@ -112,94 +331,271 @@ relationships:
   - head: "Person"
     relation: "livesIn"
     tail: "Location"
+  - head: "Organization"
+    relation: "locatedIn"
+    tail: "Location"
 ```
 
-### 步骤2：上传文档
+> 💡 **提示**：配置完成后可以在"结构图"标签页中预览实体-关系图。
 
-- 支持上传 `.txt` 和 `.docx` 格式的文档
-- 系统会自动将文档分割成合适大小的文本块
+### 步骤 2：文档导入
 
-### 步骤3：配置LLM和数据库
+上传需要处理的文档。
 
-- **选择LLM模型**：从下拉菜单中选择要使用的LLM模型
-- **输入API Key**：根据选择的模型输入对应的API Key
-- **配置Neo4j**：输入Neo4j数据库的连接信息（URI、用户名、密码）
+**支持格式：**
+- 📄 **PDF** (.pdf) — 自动提取文本内容
+- 📝 **Word** (.docx) — 保留段落结构
+- 📊 **Excel** (.xlsx) — 读取所有工作表
+- 📃 **纯文本** (.txt) — 直接读取
 
-### 步骤4：构建知识图谱
+**两种导入方式：**
+- **单文件上传** — 点击上传按钮选择文件
+- **文件夹导入** — 输入文件夹路径批量处理
 
-- 点击"Build Knowledge Graph"按钮开始构建过程
-- 系统会实时显示处理进度
-- 构建完成后，可查看抽取的三元组和知识图谱统计信息
+### 步骤 3：配置连接
 
-## 模块说明
+配置 LLM 模型和 Neo4j 数据库连接。
 
-### app.py
-主应用入口，负责界面渲染和业务流程控制。
+1. **选择 LLM 服务商** — 从下拉列表中选择
+2. **输入 API Key** — 粘贴您的 API Key（或使用 .env 文件中配置的）
+3. **指定模型名称** — 输入具体模型名称
+4. **测试连接** — 点击"测试连接"按钮验证配置
+5. **配置 Neo4j** — 输入 URI、用户名和密码
+6. **测试数据库连接** — 验证 Neo4j 是否可访问
 
-### components/ui_components.py
-包含自定义UI组件，如页面头部、步骤导航、加载状态等。
+### 步骤 4：抽取处理
 
-### utils/doc_loader.py
-负责文档的加载和预处理，支持多种文档格式。
+系统自动将文档分块，并使用 LLM 逐块抽取三元组。
 
-### utils/llm_extractor.py
-核心模块，使用LLM从文本中抽取实体、关系和属性，构建三元组。
+- **实时进度条** — 显示当前处理进度和预估剩余时间
+- **处理日志** — 每块的处理状态实时更新
+- **断点续传** — 如果中断，已处理的结果不会丢失
 
-### utils/graph_db.py
-负责与Neo4j数据库的交互，执行Cypher语句进行数据存储。
+### 步骤 5：审核入库
 
-### utils/config_manager.py
-配置管理工具，负责加载和保存应用配置。
+**两种审核模式：**
 
-### styles/main.css 和 styles/main.js
-自定义样式和脚本，用于美化界面和增强用户体验。
+1. **自动审核** — 系统自动将所有抽取的三元组入库（适合信任 LLM 结果的场景）
+2. **人工审核** — 逐个查看三元组，确认/编辑/删除后入库（适合对数据质量要求高的场景）
 
-## 开发
+审核完成点击"确认入库"。
 
-### 环境搭建
+### 步骤 6：完成
 
-```bash
-# 克隆项目
-git clone https://github.com/happy-momo/EASY-Knowledge-Graph-Builder.git
-cd Knowledge-Graph-Builder
+查看抽取统计信息：
+- 处理的文档数和分块数
+- 抽取的实体数、关系数、属性数
+- 处理耗时
 
-# 安装依赖
-pip install -r requirements.txt
+> 🗄️ 在 Neo4j Browser (http://localhost:7474) 中查看知识图谱：
+> ```cypher
+> MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100
+> ```
 
-# 启动开发服务器
-python -m streamlit run app.py
-```
+---
 
-### 贡献指南
-
-欢迎提交Issue和Pull Request！
-
-1. Fork项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开Pull Request
-
-## 许可证
-
-本项目采用MIT许可证 - 详见 [LICENSE](LICENSE) 文件。
-
-## 致谢
-
-- 感谢自己开始尝试使用vibe coding快速实现并且迭代了这个想法
-- 感谢Streamlit、LangChain和Neo4j等开源项目的支持
-
-## 声明
-
-如果您觉得这个项目对您有帮助，请给它一个⭐️！
-
-如果您基于此项目进行二次开发，请在代码中注明来源：
+## 📁 项目结构 | Project Structure
 
 ```
-基于 Knowledge Graph Builder 项目开发
-原项目地址：https://github.com/happy-momo/EASY-Knowledge-Graph-Builder
+EASY-Knowledge-Graph-Builder/
+├── app.py                          # 主应用入口（Streamlit）
+├── Dockerfile                      # Docker 构建文件
+├── docker-compose.yml              # Docker Compose 配置（含 Neo4j）
+├── .env.example                    # 环境变量示例
+├── requirements.txt                # Python 依赖列表
+│
+├── components/                     # UI 组件
+│   ├── __init__.py
+│   ├── config_page.py              # 配置页面组件
+│   ├── file_import.py              # 文件导入组件
+│   ├── icons.py                    # SVG 图标库（跨浏览器兼容）
+│   ├── process_display.py          # 处理进度显示组件
+│   ├── review_panel.py             # 审核面板组件
+│   ├── schema_templates.py         # Schema 模板选择组件
+│   ├── step_navigation.py          # 步骤导航组件
+│   └── welcome_page.py             # 欢迎引导页组件
+│
+├── config/                         # 配置
+│   └── app_config.py               # 应用配置（Schema模板、默认值）
+│
+├── utils/                          # 核心工具
+│   ├── cypher_generator.py         # Cypher 查询生成器
+│   ├── doc_loader.py               # 文档加载与分块
+│   ├── env_checker.py              # 环境变量检测
+│   ├── extractor.py                # LLM 三元组抽取引擎
+│   ├── file_manager.py             # 文件管理
+│   ├── folder_loader.py            # 文件夹加载
+│   ├── llm_config.py               # LLM 配置与双路由
+│   ├── neo4j_manager.py            # Neo4j 数据库操作
+│   ├── progress_tracker.py         # 进度追踪
+│   ├── schema_visualizer.py        # Schema 结构图可视化
+│   └── state_manager.py            # 状态管理
+│
+├── styles/                         # 样式
+│   └── main.css                    # 全局样式
+│
+├── scripts/                        # 脚本
+│   └── start.sh                    # 一键启动脚本
+│
+├── tests/                          # 测试
+│   ├── conftest.py                 # pytest 夹具
+│   ├── test_core.py                # 核心功能测试
+│   └── test_new_features.py        # 新功能测试
+│
+└── .data/                          # 数据持久化（gitignore）
+    ├── session/                    # 会话状态
+    └── uploads/                    # 上传文件
 ```
 
 ---
 
-**Enjoy building knowledge graphs! 🎉**
+## 💻 开发指南 | Development Guide
+
+### 环境搭建 | Setup
+
+```bash
+# 克隆项目
+git clone https://github.com/happy-momo/EASY-Knowledge-Graph-Builder.git
+cd EASY-Knowledge-Graph-Builder
+
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+
+# 安装开发依赖
+pip install -r requirements.txt
+pip install pytest pytest-cov  # 测试依赖
+
+# 启动开发服务器
+streamlit run app.py
+```
+
+### 运行测试 | Running Tests
+
+```bash
+# 运行所有测试
+pytest tests/ -v
+
+# 带覆盖率报告
+pytest tests/ --cov=utils --cov=components --cov-report=term-missing -v
+
+# 运行特定测试
+pytest tests/test_core.py -v -k "test_sanitize"
+```
+
+### 代码风格 | Code Style
+
+- Python: 遵循 [PEP 8](https://www.python.org/dev/peps/pep-0008/) 规范
+- 导入顺序: 标准库 → 第三方库 → 本地模块
+- 类型注解: 对函数参数和返回值使用类型注解
+- 文档字符串: 使用 Google 风格 docstring
+
+### 构建 Docker 镜像 | Building Docker Image
+
+```bash
+# 构建镜像
+docker build -t kg-builder .
+
+# 使用 Docker Compose 构建并启动
+docker compose up -d --build
+```
+
+---
+
+## ❓ 常见问题 | FAQ
+
+### Docker 相关
+
+**Q: 启动时提示"端口已被占用"？**
+> 修改 `docker-compose.yml` 中的端口映射，如 `"8502:8501"`。
+
+**Q: 如何查看 Neo4j 日志？**
+> ```bash
+> docker compose logs neo4j
+> ```
+
+**Q: 数据存在哪里？**
+> - Neo4j 数据存储在 Docker 卷 `kg-neo4j-data` 中
+> - 应用数据存储在 `.data/` 目录或卷 `kg-builder-data` 中
+
+### LLM 相关
+
+**Q: 需要配置多个 API Key 吗？**
+> 不需要，只需要配置至少一个 LLM 提供商的 API Key 即可使用。
+
+**Q: 抽取结果不准确怎么办？**
+> - 尝试使用更强大的模型（如 `gpt-4o` 替代 `gpt-4o-mini`）
+> - 调整 LLM 温度参数（降低到 0.05 增加确定性）
+> - 优化 Schema 定义，使实体和关系更明确
+
+### Neo4j 相关
+
+**Q: Neo4j Browser 无法访问？**
+> 确保 Neo4j 容器正常运行：`docker compose ps neo4j`
+
+**Q: 如何修改 Neo4j 密码？**
+> 1. 访问 http://localhost:7474
+> 2. 使用默认密码登录
+> 3. 执行 `ALTER CURRENT USER SET PASSWORD FROM '旧密码' TO '新密码'`
+
+---
+
+## 🤝 贡献指南 | Contributing
+
+### 中文
+
+欢迎贡献！无论是新功能、bug 修复还是文档改进，都欢迎提交 Issue 和 Pull Request。
+
+1. **Fork** 本仓库
+2. 创建特性分支: `git checkout -b feature/AmazingFeature`
+3. 提交更改: `git commit -m 'Add some AmazingFeature'`
+4. 推送到分支: `git push origin feature/AmazingFeature`
+5. 打开 Pull Request
+
+### English
+
+Contributions are welcome! Whether it's a new feature, bug fix, or documentation improvement, please feel free to submit Issues and Pull Requests.
+
+1. **Fork** the repository
+2. Create your feature branch: `git checkout -b feature/AmazingFeature`
+3. Commit your changes: `git commit -m 'Add some AmazingFeature'`
+4. Push to the branch: `git push origin feature/AmazingFeature`
+5. Open a Pull Request
+
+---
+
+## 📄 许可证 | License
+
+本项目采用 MIT 许可证 — 详见 [LICENSE](LICENSE) 文件。
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 致谢 | Acknowledgements
+
+- 感谢 [Streamlit](https://streamlit.io/) — 强大的 Web 应用框架
+- 感谢 [LangChain](https://www.langchain.com/) — LLM 应用框架
+- 感谢 [Neo4j](https://neo4j.com/) — 领先的图数据库
+- 感谢所有贡献者和用户的反馈支持
+
+---
+
+<p align="center">
+  <strong>如果这个项目对您有帮助，请给它一个 ⭐️！</strong><br>
+  <strong>If you find this project helpful, please give it a ⭐️!</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/happy-momo/EASY-Knowledge-Graph-Builder">GitHub Repository</a>
+  ·
+  <a href="https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/issues">Report Bug</a>
+  ·
+  <a href="https://github.com/happy-momo/EASY-Knowledge-Graph-Builder/issues">Request Feature</a>
+</p>
+
+---
+
+<p align="center">
+  <em>Built with ❤️ by the KG AI Builder community</em>
+</p>

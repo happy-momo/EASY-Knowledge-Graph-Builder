@@ -27,7 +27,7 @@ st.set_page_config(**PAGE_CONFIG)
 try:
     with open("styles/main.css", "r", encoding="utf-8") as f:
         custom_css = f.read()
-    st.html(f"<style>{custom_css}</style>")
+    st.markdown(f"<style>{custom_css}</style>", unsafe_allow_html=True)
 except FileNotFoundError:
     st.warning("CSS样式文件未找到，使用默认样式")
     custom_css = ""
