@@ -10,6 +10,7 @@ from html import escape as html_escape
 
 from config.app_config import SCHEMA_TEMPLATES, HELP_TEXTS
 from utils.schema_visualizer import render_schema_graph, render_schema_details
+from components.icons import icon
 
 
 def render_schema_selection() -> Tuple[Optional[Dict], str]:
@@ -148,6 +149,8 @@ relationships:
         label_visibility="collapsed"
     )
 
+    st.caption("输入完成后点击「解析Schema」解析，解析后即可继续下一步")
+
     if st.button("解析Schema", key="parse_manual_schema", type="primary"):
         try:
             schema_dict = yaml.safe_load(yaml_input)
@@ -170,7 +173,7 @@ relationships:
 
 def render_schema_visualization(schema_dict: Dict, schema_yaml_str: str = ""):
     """渲染 Schema 可视化（结构图 / 明细表 / 原始 YAML 三栏切换）"""
-    tab_graph, tab_detail, tab_yaml = st.tabs(["📊 结构图", "📋 明细表", "📝 原始 YAML"])
+    tab_graph, tab_detail, tab_yaml = st.tabs(["结构图", "明细表", "原始 YAML"])
 
     with tab_graph:
         st.caption("实体为节点，关系为带箭头连线；悬浮节点可查看属性。")
@@ -195,9 +198,9 @@ def render_schema_preview(schema_dict: Dict):
     total_props = sum(len(e.get('properties', [])) for e in entities)
     stat_html = (
         '<div style="display: flex; gap: 1.5rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #6B7280;">'
-        f'<span>📋 {len(entities)} 个实体</span>'
-        f'<span>🔗 {len(relationships)} 个关系</span>'
-        f'<span>🏷️ {total_props} 个属性</span>'
+        f'<span style="display: inline-flex; align-items: center; gap: 4px;">{icon("clipboard", 14, "#6B7280")} {len(entities)} 个实体</span>'
+        f'<span style="display: inline-flex; align-items: center; gap: 4px;">{icon("link", 14, "#6B7280")} {len(relationships)} 个关系</span>'
+        f'<span style="display: inline-flex; align-items: center; gap: 4px;">{icon("tag", 14, "#6B7280")} {total_props} 个属性</span>'
         '</div>'
     )
     st.markdown(stat_html, unsafe_allow_html=True)

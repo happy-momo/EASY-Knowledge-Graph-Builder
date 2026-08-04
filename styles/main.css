@@ -110,9 +110,13 @@
     --space-12: 48px;
     --space-16: 64px;
 
-    /* 字体 */
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-    --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+    /* 字体：含 Linux CJK 回退，确保 Docker/无中文字体环境不出现"豆腐块"，
+       各操作系统中文字宽一致，避免撑爆固定宽度的 SVG 标签/网格列 */
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+        'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC',
+        'Source Han Sans SC', 'WenQuanYi Micro Hei', sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Consolas',
+        'Noto Sans Mono CJK SC', monospace;
 
     /* 字号 */
     --text-xs:   12px;
@@ -594,6 +598,8 @@ h4 {
         box-shadow var(--duration-normal) var(--ease-out),
         transform var(--duration-normal) var(--ease-out);
     animation: cardEnter var(--duration-slower) var(--ease-out) forwards;
+    /* 卡片错峰入场（由组件设置 --index；未设置时默认 0，无延迟） */
+    animation-delay: calc(var(--index, 0) * 60ms);
     opacity: 0;
 }
 
@@ -652,6 +658,10 @@ h4 {
     font-weight: var(--font-medium);
     color: var(--color-secondary-600);
     white-space: nowrap;
+    /* 长关系名不撑破三元组行：限宽 + 省略号，跨浏览器断点一致 */
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* ==================== 文件列表项 ==================== */
@@ -668,6 +678,7 @@ h4 {
         box-shadow var(--duration-normal) var(--ease-out),
         border-color var(--duration-fast) ease;
     animation: itemEnter var(--duration-slower) var(--ease-out) forwards;
+    animation-delay: calc(var(--index, 0) * 50ms);
     opacity: 0;
 }
 
@@ -901,9 +912,13 @@ h4 {
 /* ==================== 模态框 ==================== */
 .modal-overlay {
     position: fixed;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1013,7 +1028,14 @@ h4 {
     }
 }
 
-/* ==================== 滚动条 ==================== */
+/* ==================== 滚动条（跨浏览器一致） ==================== */
+/* Firefox：scrollbar-width / scrollbar-color 为继承属性，设于 html 即可覆盖所有滚动容器 */
+html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-neutral-300) transparent;
+}
+
+/* Chrome / Edge / Safari */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -1032,33 +1054,57 @@ h4 {
     background: var(--color-neutral-400);
 }
 
+/* ==================== 跨浏览器兼容补丁 ==================== */
+/* components.html(..., height=0) 注入的 iframe 默认 inline，在 Firefox/Safari
+   会贡献一条 3-4px 基线缝隙，Chrome 则折叠为 0。强制 block 消除跨浏览器间距差异。 */
+iframe {
+    display: block;
+}
+
+/* 尊重系统"减少动态"设置：开启后禁用所有动画/过渡，避免前庭敏感用户不适，
+   也让 Safari/Edge（更严格尊重该设置）与 Chrome 表现一致 */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
 /* ==================== 选择高亮 ==================== */
 ::selection {
     background: var(--color-primary-200);
     color: var(--color-primary-700);
 }
 
-/* ==================== 强制覆盖 Streamlit 主题（跨浏览器一致性） ====================
-   Streamlit 会将主题 CSS 以 !important 注入到 body/stApp，
-   必须用更具体的选择器 + !important 覆盖，防止不同浏览器渲染差异。 */
+/* ==================== 强制覆盖 Streamlit 主题（跨浏览器/跨版本一致性） ====================
+   Streamlit ≥1.32 起将组件类名改为 Emotion 哈希（st-emotion-cache-XXX），早期
+   camelCase 类（.stMarkdown/.stTextInput ...）已不保证存在。因此这里一律以稳定的
+   [data-testid="..."] 作为主选择器，并把旧 camelCase 类作为兜底（不存在时无害），
+   确保文字/背景色覆盖不会因 Streamlit 版本升级而静默失效。 */
 
 /* 背景色强制覆盖 */
-html, body, .main, .stApp {
+html, body, .main,
+[data-testid="stApp"], .stApp,
+[data-testid="stAppViewContainer"] {
     background-color: var(--bg-primary) !important;
 }
 
 /* 文字颜色强制覆盖 */
-.stApp,
-.stMarkdown,
-.stMarkdown p,
-.stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
-.stMarkdown label,
-.stTextInput label,
-.stNumberInput label,
-.stSelectbox label,
-.stRadio label,
-.stTextArea label,
-.stCheckbox label,
+[data-testid="stApp"], .stApp,
+[data-testid="stMarkdown"], .stMarkdown,
+[data-testid="stMarkdown"] p, .stMarkdown p,
+[data-testid="stMarkdown"] h1, [data-testid="stMarkdown"] h2,
+[data-testid="stMarkdown"] h3, [data-testid="stMarkdown"] h4,
+[data-testid="stMarkdown"] h5, [data-testid="stMarkdown"] h6,
+[data-testid="stMarkdown"] label,
+[data-testid="stTextInput"] label, .stTextInput label,
+[data-testid="stNumberInput"] label, .stNumberInput label,
+[data-testid="stSelectbox"] label, .stSelectbox label,
+[data-testid="stRadio"] label, .stRadio label,
+[data-testid="stTextArea"] label, .stTextArea label,
+[data-testid="stCheckbox"] label, .stCheckbox label,
 [data-testid="stText"] label,
 [data-testid="stMetric"] label,
 [data-testid="stHeading"] {
@@ -1070,19 +1116,16 @@ html, body, .main, .stApp {
     background-color: var(--bg-secondary) !important;
 }
 
-/* Streamlit 原生组件背景色覆盖 */
-.stEmotionCache {
-    background-color: transparent !important;
-}
-
 /* 信息/成功/警告/错误框强制文字颜色 */
-.stAlert,
-.stAlert > div {
+[data-testid="stAlert"], .stAlert,
+[data-testid="stAlert"] > div, .stAlert > div {
     color: var(--text-primary) !important;
 }
 
 /* Streamlit 容器内 markdown 背景透明（用稳定 data-testid，避免哈希类名失效） */
+[data-testid="stVerticalBlock"] [data-testid="stMarkdown"],
 [data-testid="stVerticalBlock"] .stMarkdown,
+[data-testid="stHorizontalBlock"] [data-testid="stMarkdown"],
 [data-testid="stHorizontalBlock"] .stMarkdown {
     background-color: transparent !important;
 }

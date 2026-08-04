@@ -8,25 +8,33 @@ import streamlit as st
 import yaml
 import json
 import time
+import logging
 from typing import Dict, List, Tuple, Optional
 from pathlib import Path
+
+# 日志配置（在页面配置前完成，确保关键路径可观测）
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 # 页面配置
 from config.app_config import PAGE_CONFIG, STEPS, DEFAULT_CONFIG
 st.set_page_config(**PAGE_CONFIG)
 
-# 加载CSS样式
+# 加载CSS样式（用 st.html 注入到 head 并去重，避免 st.markdown 注入 body 在
+# 频繁 rerun 时出现"主题色闪现"的 FOUC，跨浏览器重绘时序差异更小）
 try:
     with open("styles/main.css", "r", encoding="utf-8") as f:
         custom_css = f.read()
-    st.markdown(f"<style>{custom_css}</style>", unsafe_allow_html=True)
+    st.html(f"<style>{custom_css}</style>")
 except FileNotFoundError:
     st.warning("CSS样式文件未找到，使用默认样式")
     custom_css = ""
 
 # 导入新的核心模块
 from utils.llm_config import LLMConfig, get_preset_configs, create_llm_config_from_preset
-from utils.extractor import extract_triples, KnowledgeGraphTriple, ExtractionError
+from utils.extractor import extract_triples, prepare_extraction, KnowledgeGraphTriple, ExtractionError
 from utils.cypher_generator import generate_cypher_safe
 from utils.neo4j_manager import Neo4jManager
 from utils.state_manager import state_manager
@@ -65,6 +73,49 @@ from components import (
     render_error_page,
     render_loading_animation
 )
+from components.icons import icon
+
+
+# ==================== 错误文案友好化 ====================
+
+# 常见错误关键词 → 用户友好提示
+_ERROR_MAP = [
+    ("ConnectionError", "无法连接到服务器，请检查网络连接和 API 地址是否正确"),
+    ("Timeout", "连接超时，请检查网络状态或增大超时时间"),
+    ("RateLimit", "请求频率超限，请稍后重试"),
+    ("Authentication", "认证失败，请检查 API Key 是否正确"),
+    ("Unauthorized", "认证失败，请检查 API Key 是否正确"),
+    ("401", "认证失败，请检查 API Key 是否正确"),
+    ("403", "权限不足，请检查 API Key 是否有对应权限"),
+    ("404", "接口地址不存在，请检查 API 端点 URL"),
+    ("Neo4j", "数据库连接失败，请检查 Neo4j 地址、用户名和密码"),
+    ("SSL", "SSL 连接失败，请检查网络环境或联系服务商"),
+    ("DNS", "DNS 解析失败，请检查网络连接"),
+    ("YAML", "配置格式错误，请检查 YAML 语法"),
+    ("JSONDecode", "数据解析失败，请检查 LLM 返回格式"),
+]
+
+
+def _friendly_error(error: str) -> str:
+    """将技术错误信息映射为友好提示"""
+    for keyword, friendly in _ERROR_MAP:
+        if keyword.lower() in str(error).lower():
+            return friendly
+    return "操作执行出错，请检查配置和网络连接后重试"
+
+
+def _show_error(friendly_message: str, technical_detail: str = None):
+    """
+    显示友好错误消息 + 可折叠的技术详情
+
+    Args:
+        friendly_message: 用户友好的错误描述
+        technical_detail: 原始技术错误信息（在折叠区域中显示）
+    """
+    st.error(friendly_message)
+    if technical_detail:
+        with st.expander("查看技术详情"):
+            st.code(str(technical_detail), language="text")
 
 
 # ==================== 状态初始化 ====================
@@ -114,7 +165,7 @@ def show_resume_prompt():
         st.markdown(
             '<div style="background-color: #fef3c7; border: 1px solid #f59e0b; '
             'border-radius: 8px; padding: 16px; margin: 16px 0; color: var(--text-warning);">'
-            '<p style="margin: 0; font-weight: 600; color: var(--text-warning);">⚠️ 检测到未完成的处理任务</p>'
+            f'<p style="margin: 0; font-weight: 600; color: var(--text-warning); display: flex; align-items: center; gap: 6px;">{icon("warning", 18, "#92400E")} 检测到未完成的处理任务</p>'
             '<p style="margin: 8px 0 0 0; color: var(--text-warning);">您有未完成的处理任务，是否恢复？</p>'
             '</div>',
             unsafe_allow_html=True
@@ -212,6 +263,9 @@ def render_schema_step():
     # 渲染Schema选择
     schema_dict, schema_yaml = render_schema_selection()
 
+    can_proceed = False
+    next_help = None
+
     if schema_dict:
         # 验证Schema
         is_valid, error_msg = validate_schema(schema_dict)
@@ -219,23 +273,28 @@ def render_schema_step():
         if is_valid:
             st.session_state.schema_config = schema_dict
             st.session_state.schema_yaml = schema_yaml
-
-            # 导航按钮
-            action = render_navigation_buttons(
-                current_step=1,
-                can_proceed=True,
-                show_back=True
-            )
-
-            if action == "next":
-                st.session_state.completed_steps.append(1)
-                st.session_state.current_step = 2
-                st.rerun()
-            elif action == "back":
-                st.session_state.current_step = 0
-                st.rerun()
+            can_proceed = True
         else:
             st.error(error_msg)
+            next_help = "请修复Schema中的错误后继续"
+    else:
+        next_help = "请先选择一个模板或手动输入Schema并解析"
+
+    # 导航按钮（常驻显示，不满足条件时置灰带提示）
+    action = render_navigation_buttons(
+        current_step=1,
+        can_proceed=can_proceed,
+        show_back=True,
+        next_help=next_help
+    )
+
+    if action == "next":
+        st.session_state.completed_steps.append(1)
+        st.session_state.current_step = 2
+        st.rerun()
+    elif action == "back":
+        st.session_state.current_step = 0
+        st.rerun()
 
 
 def render_file_step():
@@ -251,11 +310,12 @@ def render_file_step():
     if not can_proceed:
         st.warning("请先导入至少一个文件")
 
-    # 导航按钮
+    # 导航按钮（常驻，无文件时置灰）
     action = render_navigation_buttons(
         current_step=2,
         can_proceed=can_proceed,
-        show_back=True
+        show_back=True,
+        next_help="请先导入至少一个文件" if not can_proceed else None
     )
 
     if action == "next" and can_proceed:
@@ -285,12 +345,13 @@ def render_config_step():
     save_config_to_state(config)
     save_persisted_state()
 
-    # 导航按钮
+    # 导航按钮（常驻，配置不完整时置灰）
     action = render_navigation_buttons(
         current_step=3,
         can_proceed=is_valid,
         show_back=True,
-        next_label="开始抽取"
+        next_label="开始抽取",
+        next_help="请先完成所有配置项" if not is_valid else None
     )
 
     if action == "next" and is_valid:
@@ -326,7 +387,7 @@ def render_process_step():
 
     elif not st.session_state.is_processing:
         # 开始处理按钮
-        if st.button("▶ 开始知识抽取", type="primary", use_container_width=True):
+        if st.button("开始知识抽取", type="primary", use_container_width=True):
             # 只设置状态并刷新，不在按钮回调中执行耗时操作
             st.session_state.is_processing = True
             st.session_state._resume_mode = False
@@ -377,7 +438,7 @@ def start_extraction_process(resume: bool = False):
             max_tokens=llm_config_dict.get('max_tokens', 2048)
         )
     except (ValueError, KeyError) as e:
-        st.error(f"LLM 配置无效: {e}")
+        _show_error(f"LLM 配置无效: {_friendly_error(e)}", f"技术详情: {e}")
         st.session_state.is_processing = False
         return
 
@@ -395,6 +456,17 @@ def start_extraction_process(resume: bool = False):
             neo4j_config['password']
         )
 
+    # 预解析本体 + 创建复用的 LLM 客户端（避免每分块新建连接泄漏文件描述符）
+    extraction_ctx = None
+    try:
+        extraction_ctx = prepare_extraction(st.session_state.schema_yaml, llm_config)
+    except Exception as e:
+        st.error(f"初始化抽取失败：{e}")
+        st.session_state.is_processing = False
+        if neo4j_manager:
+            neo4j_manager.close()
+        return
+
     # 使用 st.status 显示实时进度
     progress = progress_tracker.get_progress()
     with st.status("正在抽取知识...", expanded=True) as status:
@@ -406,6 +478,9 @@ def start_extraction_process(resume: bool = False):
         triples_metric = stats_cols[1].empty()
         avg_metric = stats_cols[2].empty()
         time_metric = stats_cols[3].empty()
+
+        chunk_errors = 0      # 抽取失败的分块数
+        write_failures = 0    # 写入 Neo4j 失败的分块数
 
         try:
             # 处理每个分块
@@ -422,19 +497,33 @@ def start_extraction_process(resume: bool = False):
                 p = progress_tracker.get_progress()
                 pct = p.progress_percent / 100
                 progress_bar.progress(pct)
-                status_text.text(f"正在处理: {file_name} (分块 {chunk_index + 1})")
+                status_text.text(f"正在处理: {file_name} · 第 {chunk_index + 1}/{p.total_chunks} 个文本块")
                 processed_metric.metric("已处理", f"{p.processed_chunks}/{p.total_chunks}")
                 triples_metric.metric("三元组", p.total_triples)
                 if p.processed_chunks > 0:
                     avg_metric.metric("平均", f"{p.total_triples / p.processed_chunks:.1f}/块")
-                time_metric.metric("耗时", p.elapsed_time_str)
+                    # 预估剩余时间：基于已处理分块的平均耗时
+                    avg_time = p.elapsed_time / p.processed_chunks
+                    remaining = p.total_chunks - p.processed_chunks
+                    eta_sec = remaining * avg_time
+                    if eta_sec < 60:
+                        eta_str = f"{int(eta_sec)}秒"
+                    elif eta_sec < 3600:
+                        eta_str = f"{int(eta_sec / 60)}分{int(eta_sec % 60)}秒"
+                    else:
+                        eta_str = f"{int(eta_sec / 3600)}时{int((eta_sec % 3600) / 60)}分"
+                    time_metric.metric("耗时 / 预计剩余", f"{p.elapsed_time_str} / {eta_str}")
+                else:
+                    time_metric.metric("耗时", p.elapsed_time_str)
 
-                # 调用LLM抽取
-                triples = extract_triples(
-                    chunk_content,
-                    st.session_state.schema_yaml,
-                    llm_config
-                )
+                # 调用LLM抽取（单块失败不终止整批，记录错误后继续下一块）
+                try:
+                    triples = extract_triples(chunk_content, extraction_ctx)
+                except ExtractionError as e:
+                    progress_tracker.update_chunk_error(chunk_index, str(e))
+                    chunk_errors += 1
+                    logging.error(f"分块 {chunk_index} ({file_name}) 抽取失败: {e}")
+                    continue
 
                 if triples:
                     # 转换为字典格式
@@ -458,10 +547,13 @@ def start_extraction_process(resume: bool = False):
                         len(triples)
                     )
 
-                    # 自动审核模式：直接存入数据库
+                    # 自动审核模式：直接存入数据库（检查写入返回值，失败不静默）
                     if config.get('review_mode') == 'auto' and neo4j_manager:
                         cypher_queries = generate_cypher_safe(triples)
-                        neo4j_manager.execute_cypher(cypher_queries)
+                        ok = neo4j_manager.execute_cypher(cypher_queries)
+                        if not ok:
+                            write_failures += 1
+                            logging.error(f"分块 {chunk_index} ({file_name}) 写入 Neo4j 失败")
 
                 else:
                     progress_tracker.update_chunk_complete(chunk_index, [], 0)
@@ -485,6 +577,15 @@ def start_extraction_process(resume: bool = False):
             st.session_state.is_processing = False
             st.session_state.processing_result = p.get_statistics()
 
+            # 部分失败友好提示（不阻断，已成功处理的部分仍可用）
+            if chunk_errors or write_failures:
+                parts = []
+                if chunk_errors:
+                    parts.append(f"{chunk_errors} 个分块抽取失败")
+                if write_failures:
+                    parts.append(f"{write_failures} 个分块写入数据库失败")
+                st.warning("部分分块处理失败：" + "，".join(parts) + "，已跳过；其余分块已成功处理。")
+
             # 根据审核模式决定下一步
             if config.get('review_mode') == 'manual':
                 st.session_state.current_step = 5
@@ -492,21 +593,18 @@ def start_extraction_process(resume: bool = False):
                 st.session_state.completed_steps.append(5)
                 st.session_state.current_step = 6
 
-        except ExtractionError as e:
-            progress_tracker.error(str(e))
-            status.update(label=f"抽取失败: {e}", state="error", expanded=True)
-            st.error(f"抽取失败: {e}")
-            st.session_state.is_processing = False
-
         except Exception as e:
             progress_tracker.error(str(e))
-            status.update(label=f"处理出错: {e}", state="error", expanded=True)
-            st.error(f"处理出错: {e}")
+            friendly = _friendly_error(e)
+            status.update(label=f"处理出错: {friendly}", state="error", expanded=True)
+            _show_error(f"处理出错: {friendly}", f"技术详情: {e}")
             st.session_state.is_processing = False
 
         finally:
             if neo4j_manager:
                 neo4j_manager.close()
+            if extraction_ctx is not None:
+                extraction_ctx.close()
 
     # 处理完成后自动跳转
     if not st.session_state.is_processing:
@@ -570,7 +668,7 @@ def render_review_step():
         try:
             save_reviewed_triples(review_state)
         except Exception as e:
-            st.error(f"保存到 Neo4j 失败: {e}")
+            _show_error(f"保存到 Neo4j 失败: {_friendly_error(e)}", f"技术详情: {e}")
             return
         st.session_state.completed_steps.append(5)
         st.session_state.current_step = 6
@@ -610,7 +708,11 @@ def save_reviewed_triples(review_state: TripleReviewState):
 
         # 生成安全的Cypher查询
         cypher_queries = generate_cypher_safe(triples_obj)
-        neo4j_manager.execute_cypher(cypher_queries)
+        ok = neo4j_manager.execute_cypher(cypher_queries)
+        if not ok:
+            # 写入失败（连接/认证/部分查询失败）时抛错，由调用方提示用户，
+            # 避免误以为已保存而跳转到完成页（静默数据丢失）。
+            raise RuntimeError("部分三元组写入 Neo4j 失败，请检查数据库连接、认证信息与服务状态后重试。")
 
 
 def render_complete_step():

@@ -198,7 +198,7 @@ def _render_llm_quick_connect():
         api_endpoint = vendor["base_url"]
 
     # ---- 测试按钮 ----
-    if st.button("🔌 测试 LLM 连接", key="quick_test_llm", use_container_width=True):
+    if st.button("测试 LLM 连接", key="quick_test_llm", use_container_width=True):
         if not api_endpoint and not is_google:
             st.warning("请输入 API 端点")
         elif not api_key:
@@ -217,11 +217,11 @@ def _render_llm_quick_connect():
                     )
                     success, message = test_llm_connection(config)
                     if success:
-                        st.success("✅ 连接成功！")
+                        st.success("连接成功！")
                     else:
-                        st.error(f"❌ 连接失败：{message[:100]}")
+                        st.error(f"连接失败：{message[:100]}")
                 except Exception as e:
-                    st.error(f"❌ 配置错误：{str(e)[:100]}")
+                    st.error(f"配置错误：{str(e)[:100]}")
 
     # 保存到 session_state
     if api_key and model_name and (api_endpoint or is_google):

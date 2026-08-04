@@ -526,7 +526,7 @@ def get_package_install_hint(vendor_type: str, provider: str) -> str:
 
 # ==================== 模型创建（双路由核心） ====================
 
-def create_chat_model(config: LLMConfig):
+def create_chat_model(config: LLMConfig, http_client=None):
     """
     根据配置动态创建 LangChain Chat 模型（双路由）
 
@@ -535,6 +535,9 @@ def create_chat_model(config: LLMConfig):
 
     Args:
         config: LLM 配置
+        http_client: 可选的复用 httpx.Client（路径 A）。批量抽取时由外层
+            创建一次并传入，避免每个分块都新建一个连接池导致文件描述符泄漏。
+            为 None 时按原行为自建（适用于单次调用/连接测试）。
 
     Returns:
         LangChain Chat 模型实例
@@ -567,17 +570,20 @@ def create_chat_model(config: LLMConfig):
         # 修复 httpx + h2(HTTP/2) 导致部分国内厂商 SSL 连接失败的问题
         # 当 h2 包已安装时，httpx 默认尝试 HTTP/2 协商，部分厂商 SSL 不兼容
         # 解决方案：注入自定义 httpx.Client，强制使用 HTTP/1.1
-        try:
-            import httpx
-            http_client = httpx.Client(
-                transport=httpx.HTTPTransport(),
-                timeout=httpx.Timeout(config.timeout, connect=10.0),
-            )
+        if http_client is not None:
             kwargs["http_client"] = http_client
-            logger.debug("Injected custom httpx client (HTTP/1.1 only) for compatibility")
-        except ImportError:
-            # httpx 不可用时走默认行为
-            pass
+            logger.debug("Reusing provided httpx client (HTTP/1.1 only)")
+        else:
+            try:
+                import httpx
+                kwargs["http_client"] = httpx.Client(
+                    transport=httpx.HTTPTransport(),
+                    timeout=httpx.Timeout(config.timeout, connect=10.0),
+                )
+                logger.debug("Injected custom httpx client (HTTP/1.1 only) for compatibility")
+            except ImportError:
+                # httpx 不可用时走默认行为
+                pass
 
         return ChatOpenAI(**kwargs)
 

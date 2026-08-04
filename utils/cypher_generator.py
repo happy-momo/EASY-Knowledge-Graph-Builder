@@ -33,16 +33,16 @@ def sanitize_identifier(identifier: str) -> str:
 
 def sanitize_string(value: str) -> str:
     """
-    清理字符串值
-    移除控制字符和潜在危险的字符
+    清理字符串值（用于参数化查询的值）
+
+    仅移除控制字符。值通过 $param 参数化传递给 Cypher，无需转义引号；
+    早期版本会把单引号转义为 \\'，导致参数值在 Neo4j 中存成带反斜杠的
+    残缺数据（如 O'Brien -> O\\'Brien），此处修正。
     """
     if not value:
         return ""
-    # 移除控制字符
-    sanitized = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f]', '', str(value))
-    # 转义单引号
-    sanitized = sanitized.replace("'", "\\'")
-    return sanitized
+    # 仅移除控制字符
+    return re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f]', '', str(value))
 
 
 def generate_cypher_safe(triples: List) -> List[CypherQuery]:
@@ -84,10 +84,12 @@ def generate_cypher_safe(triples: List) -> List[CypherQuery]:
         if triple.head_properties and isinstance(triple.head_properties, dict):
             head_props = []
             for k, v in triple.head_properties.items():
-                if k != "name" and v is not None:
-                    param_key = f"head_{k}"
+                # 属性键来自 LLM 输出，必须清洗为合法标识符，防止 Cypher 注入
+                safe_k = sanitize_identifier(k)
+                if safe_k and safe_k != "name" and v is not None:
+                    param_key = f"head_{safe_k}"
                     params[param_key] = str(v)
-                    head_props.append(f"h.{k} = ${param_key}")
+                    head_props.append(f"h.{safe_k} = ${param_key}")
 
             if head_props:
                 query += f"\n        SET {', '.join(head_props)}"
@@ -103,10 +105,11 @@ def generate_cypher_safe(triples: List) -> List[CypherQuery]:
         if triple.tail_properties and isinstance(triple.tail_properties, dict):
             tail_props = []
             for k, v in triple.tail_properties.items():
-                if k != "name" and v is not None:
-                    param_key = f"tail_{k}"
+                safe_k = sanitize_identifier(k)
+                if safe_k and safe_k != "name" and v is not None:
+                    param_key = f"tail_{safe_k}"
                     params[param_key] = str(v)
-                    tail_props.append(f"t.{k} = ${param_key}")
+                    tail_props.append(f"t.{safe_k} = ${param_key}")
 
             if tail_props:
                 query += f"\n        SET {', '.join(tail_props)}"

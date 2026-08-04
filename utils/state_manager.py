@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 import threading
 import hashlib
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class StateManager:
@@ -76,7 +79,7 @@ class StateManager:
                 os.replace(tmp_path, file_path)
             return True
         except Exception as e:
-            print(f"Error saving state {key}: {e}")
+            logger.error(f"Error saving state {key}: {e}")
             return False
 
     def load(self, key: str, default: Any = None) -> Any:
@@ -99,7 +102,7 @@ class StateManager:
                     return saved_data.get("data", default)
             return default
         except Exception as e:
-            print(f"Error loading state {key}: {e}")
+            logger.error(f"Error loading state {key}: {e}")
             return default
 
     def clear(self, key: str = None):
@@ -119,7 +122,7 @@ class StateManager:
                     for f in self.data_dir.glob("*.json"):
                         f.unlink()
         except Exception as e:
-            print(f"Error clearing state: {e}")
+            logger.error(f"Error clearing state: {e}")
 
     def save_uploaded_file(self, uploaded_file, custom_name: str = None) -> str:
         """
@@ -151,7 +154,7 @@ class StateManager:
 
             return str(file_path)
         except Exception as e:
-            print(f"Error saving uploaded file: {e}")
+            logger.error(f"Error saving uploaded file: {e}")
             return None
 
     def get_uploaded_file_path(self, filename: str) -> Optional[str]:
@@ -186,7 +189,7 @@ class StateManager:
                 return True
             return False
         except Exception as e:
-            print(f"Error deleting uploaded file: {e}")
+            logger.error(f"Error deleting uploaded file: {e}")
             return False
 
     def list_uploaded_files(self) -> List[str]:
@@ -205,7 +208,7 @@ class StateManager:
                 if f.is_file():
                     f.unlink()
         except Exception as e:
-            print(f"Error clearing uploaded files: {e}")
+            logger.error(f"Error clearing uploaded files: {e}")
 
     def get_state_summary(self) -> Dict:
         """

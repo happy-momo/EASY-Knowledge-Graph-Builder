@@ -3,9 +3,10 @@ FROM python:3.10-slim
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖
+# 安装系统依赖（含中文字体，确保 Docker 环境中文不出现"豆腐块"）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # 先复制依赖文件并安装（利用 Docker 缓存）

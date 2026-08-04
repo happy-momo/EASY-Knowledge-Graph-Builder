@@ -11,6 +11,7 @@ from html import escape as html_escape
 from utils.file_manager import FileInfo, file_manager
 from utils.folder_loader import scan_folder, load_folder, validate_folder, get_folder_info
 from utils.doc_loader import load_document
+from components.icons import file_type_icon
 
 # 每页显示的文件数
 PAGE_SIZE = 5
@@ -275,15 +276,8 @@ def render_pagination(current_page: int, total_pages: int):
 
 def render_file_item(file: FileInfo):
     """渲染单个文件条目 - 带分块预览展开"""
-    icon_map = {
-        '.pdf': '&#128214;',
-        '.docx': '&#128196;',
-        '.doc': '&#128196;',
-        '.xlsx': '&#128197;',
-        '.xls': '&#128197;',
-        '.txt': '&#128196;',
-    }
-    icon = icon_map.get(file.type, '&#128196;')
+    # 文件类型图标用统一 SVG（替代 emoji，跨系统尺寸/颜色一致）
+    icon = file_type_icon(file.type)
 
     status_map = {
         'pending': ('warning', '待处理'),
@@ -383,7 +377,7 @@ def render_chunks_preview(file: FileInfo):
                 st.rerun()
         with cp2:
             st.markdown(
-                f'<div style="text-align: center; color: #6B7280; font-size: 0.85rem; padding-top: 0.3rem;">分块 {chunk_page + 1}/{chunk_total_pages} 页</div>',
+                f'<div style="text-align: center; color: var(--text-tertiary); font-size: 0.85rem; padding-top: 0.3rem;">分块 {chunk_page + 1}/{chunk_total_pages} 页</div>',
                 unsafe_allow_html=True
             )
         with cp3:

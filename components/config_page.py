@@ -123,7 +123,7 @@ def render_llm_config_simple() -> Dict:
     # ---- 测试连接 ----
     can_test = bool(api_key and model_name and (api_endpoint or is_google))
     if can_test:
-        if st.button("🔌 测试连接", key="test_llm", type="secondary"):
+        if st.button("测试连接", key="test_llm", type="secondary"):
             with st.spinner("测试中..."):
                 try:
                     cfg = LLMConfig(

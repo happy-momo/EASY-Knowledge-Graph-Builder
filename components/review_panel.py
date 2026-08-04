@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 import copy
 from html import escape as html_escape
 
+from components.icons import icon
+
 
 @dataclass
 class TripleReviewState:
@@ -179,14 +181,14 @@ def render_triple_card(idx: int, triple: Dict, edited_triple: Optional[Dict],
     # 使用编辑后的版本（如果有）
     display_triple = edited_triple or triple
 
-    # 状态样式
+    # 状态样式（SVG 图标替代 emoji，跨系统颜色/尺寸一致）
     status_styles = {
-        'pending': ('⏳ 待审核', 'warning'),
-        'confirmed': ('✅ 已确认', 'success'),
-        'edited': ('✏️ 已编辑', 'info'),
-        'deleted': ('❌ 已删除', 'error')
+        'pending': (icon("clock", 13, "#92400E") + " 待审核", 'warning'),
+        'confirmed': (icon("check", 13, "#047857") + " 已确认", 'success'),
+        'edited': (icon("edit", 13, "#2563EB") + " 已编辑", 'info'),
+        'deleted': (icon("x", 13, "#991B1B") + " 已删除", 'error')
     }
-    status_text, status_type = status_styles.get(status, ('⚪ 未知', 'secondary'))
+    status_text, status_type = status_styles.get(status, (icon("circle", 13, "#6B7280") + " 未知", 'secondary'))
 
     # 对三元组值进行HTML转义，防止注入
     head_name = html_escape(str(display_triple.get('head', 'N/A')))
@@ -231,7 +233,7 @@ def render_triple_card(idx: int, triple: Dict, edited_triple: Optional[Dict],
             return 'confirm'
 
     with col2:
-        if st.button("✏ 编辑", key=f"edit_{idx}", use_container_width=True):
+        if st.button("编辑", key=f"edit_{idx}", use_container_width=True):
             return 'edit'
 
     with col3:
@@ -341,7 +343,7 @@ def render_properties_editor(properties: Dict, prefix: str) -> Dict:
         if slot.get('key'):
             edited_props[slot['key']] = slot.get('value', '')
 
-    if st.button("➕ 添加属性行", key=f"addprop_{prefix}", use_container_width=True):
+    if st.button("+ 添加属性行", key=f"addprop_{prefix}", use_container_width=True):
         st.session_state[new_props_key].append({})
         st.rerun()
 
