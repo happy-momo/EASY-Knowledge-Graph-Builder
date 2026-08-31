@@ -1,31 +1,49 @@
-version: '3.8'
+# ============================================================
+# KG AI Builder — Docker Compose 配置
+# ============================================================
+# 使用方法:
+#   1. 复制 .env.example 为 .env 并填入 API Key
+#   2. docker compose up -d
+#   3. 访问 http://localhost:8501
+# ============================================================
 
 services:
-  # Neo4j 图数据库
+  # ==================== Neo4j 图数据库 ====================
   neo4j:
     image: neo4j:5.13.0
     container_name: kg-neo4j
     ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt
+      # Neo4j Browser 管理界面
+      - "7474:7474"
+      # Bolt 协议（应用连接）
+      - "7687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/password123
+      # 认证: neo4j / password123（可在 .env 中修改）
+      - NEO4J_AUTH=${NEO4J_AUTH:-neo4j/password123}
+      # 内存配置
       - NEO4J_server_memory_pagecache_size=256M
       - NEO4J_server_memory_heap_initial__size=512M
       - NEO4J_server_memory_heap_max__size=1G
+      # 数据库名称
+      - NEO4J_dbms_default__database=neo4j
     volumes:
-      - neo4j_data:/data
-      - neo4j_logs:/logs
-      - neo4j_import:/var/lib/neo4j/import
+      - neo4j_data:/data          # 数据持久化
+      - neo4j_logs:/logs          # 日志
+      - neo4j_import:/var/lib/neo4j/import  # 导入目录
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7474"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     networks:
       - kg-network
+    restart: unless-stopped
+    labels:
+      description: "Neo4j 图数据库 — 存储知识图谱"
+      app: "kg-builder"
 
-  # KG Builder 应用
+  # ==================== KG Builder 应用 ====================
   kg-builder:
     build:
       context: .
@@ -34,27 +52,53 @@ services:
     ports:
       - "8501:8501"
     environment:
+      # ---- Neo4j 连接（Docker 内部网络，使用服务名） ----
       - NEO4J_URI=bolt://neo4j:7687
-      - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=password123
-      # 可选：通过环境变量配置API Key
-      # - ZHIPU_API_KEY=your_key_here
-      # - OPENAI_API_KEY=your_key_here
-      # - ANTHROPIC_API_KEY=your_key_here
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password123}
+
+      # ---- LLM API Key（通过 .env 文件注入） ----
+      # 智谱AI (推荐国内用户)
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY:-}
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Anthropic Claude
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Google Gemini
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # 阿里云通义千问
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+
+      # ---- 应用配置 ----
+      - CHUNK_SIZE=${CHUNK_SIZE:-2000}
+      - CHUNK_MIN_SIZE=${CHUNK_MIN_SIZE:-500}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.1}
     volumes:
-      - ./.data:/app/.data  # 持久化状态数据
-      - ./uploads:/app/uploads  # 上传文件目录
+      # 持久化会话状态与上传文件
+      - app_data:/app/.data
     depends_on:
       neo4j:
         condition: service_healthy
     networks:
       - kg-network
+    restart: unless-stopped
+    labels:
+      description: "KG AI Builder — 从文本到知识图谱的智能转换"
+      app: "kg-builder"
 
+# ==================== 持久化卷 ====================
 volumes:
   neo4j_data:
+    name: kg-neo4j-data
   neo4j_logs:
+    name: kg-neo4j-logs
   neo4j_import:
+    name: kg-neo4j-import
+  app_data:
+    name: kg-builder-data
 
+# ==================== 网络 ====================
 networks:
   kg-network:
+    name: kg-network
     driver: bridge

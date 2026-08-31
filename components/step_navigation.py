@@ -49,6 +49,8 @@ def render_step_navigation(current_step: int, completed_steps: List[int] = None)
         # 可点击判断
         can_click = (i in completed_set or i < current_step) and i != current_step
         clickable_attr = 'data-clickable="true"' if can_click else ''
+        tabindex = 'tabindex="0"' if can_click else ''
+        aria_current = 'aria-current="step"' if i == current_step else ''
 
         # 未来步骤灰显
         dim_style = "opacity: 0.45;" if (i > current_step and i not in completed_set) else ""
@@ -56,6 +58,7 @@ def render_step_navigation(current_step: int, completed_steps: List[int] = None)
 
         nav_html += (
             f'<div class="step-item" data-step="{i}" {clickable_attr} '
+            f'role="button" {tabindex} {aria_current} '
             f'style="{dim_style}{cursor_style}">'
             f'<div class="step-number {status_class}">{number_display}</div>'
             f'<div class="step-title {title_class}">{step["title"]}</div>'
@@ -71,33 +74,54 @@ def render_step_navigation(current_step: int, completed_steps: List[int] = None)
     js_html = """
 <script>
 (function() {
-    function bindStepClicks() {
-        var parent = window.parent.document;
-        var items = parent.querySelectorAll('.step-item[data-clickable="true"]');
-        items.forEach(function(item) {
-            // 避免重复绑定
-            if (item.getAttribute('data-nav-bound')) return;
-            item.setAttribute('data-nav-bound', 'true');
+    var parentDoc;
+    try {
+        parentDoc = window.parent.document;
+    } catch (e) {
+        // 跨源 iframe（反向代理/CDN 沙箱）无法访问父文档，点击跳转降级失效，静默退出
+        return;
+    }
 
-            item.addEventListener('click', function() {
-                var stepIndex = parseInt(this.getAttribute('data-step'));
-                // 修改父页面 URL query param，触发 Streamlit 刷新
-                var url = new URL(window.parent.location.href);
-                url.searchParams.set('nav_step', stepIndex);
-                window.parent.location.href = url.toString();
+    function bindStepClicks() {
+        try {
+            var items = parentDoc.querySelectorAll('.step-item[data-clickable="true"]');
+            items.forEach(function(item) {
+                if (item.getAttribute('data-nav-bound')) return;
+                item.setAttribute('data-nav-bound', 'true');
+
+                item.addEventListener('click', function() {
+                    var stepIndex = parseInt(this.getAttribute('data-step'));
+                    try {
+                        var url = new URL(window.parent.location.href);
+                        url.searchParams.set('nav_step', stepIndex);
+                        window.parent.location.href = url.toString();
+                    } catch (e) {}
+                });
+
+                // 键盘可访问性：Enter / Space 触发跳转
+                item.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.click();
+                    }
+                });
             });
-        });
+        } catch (e) {}
     }
 
     // 延迟执行，确保 Streamlit DOM 已渲染
     setTimeout(bindStepClicks, 200);
-    // MutationObserver 持续监听，处理 Streamlit 重新渲染后的 DOM 更新
-    var observer = new MutationObserver(function() {
-        setTimeout(bindStepClicks, 100);
-    });
+
+    // 仅观察步骤导航容器（而非整个 body），减少跨浏览器突变合并差异
+    // 导致的重复绑定/挂到即将被替换的旧节点上
     try {
-        observer.observe(window.parent.document.body, { childList: true, subtree: true });
-    } catch(e) {}
+        var container = parentDoc.querySelector('.steps-container');
+        var target = container || parentDoc.body;
+        var observer = new MutationObserver(function() {
+            setTimeout(bindStepClicks, 100);
+        });
+        observer.observe(target, { childList: true, subtree: true });
+    } catch (e) {}
 })();
 </script>
 """
@@ -176,9 +200,10 @@ def render_progress_bar(progress_percent: float, message: str = ""):
 
 def render_navigation_buttons(current_step: int, can_proceed: bool = True,
                               show_back: bool = True, show_next: bool = True,
-                              next_label: str = "下一步", back_label: str = "上一步"):
+                              next_label: str = "下一步", back_label: str = "上一步",
+                              next_help: str = None):
     """
-    渲染导航按钮
+    渲染导航按钮（常驻显示，不满足条件时置灰 + tooltip 提示）
 
     Args:
         current_step: 当前步骤
@@ -187,6 +212,7 @@ def render_navigation_buttons(current_step: int, can_proceed: bool = True,
         show_next: 是否显示下一步按钮
         next_label: 下一步按钮文字
         back_label: 返回按钮文字
+        next_help: 下一步按钮置灰时的提示文案（can_proceed=False 时显示）
     """
     col1, col2, col3 = st.columns([1, 2, 1])
 
@@ -196,9 +222,15 @@ def render_navigation_buttons(current_step: int, can_proceed: bool = True,
                 return "back"
 
     with col3:
-        if show_next and can_proceed:
+        if show_next:
+            disabled = not can_proceed
+            if disabled:
+                help_text = next_help or "当前条件不满足，请先完成本步骤的必要配置"
+            else:
+                help_text = None
             if st.button(f"{next_label} →", key=f"next_{current_step}",
-                        type="primary", use_container_width=True):
+                        type="primary", use_container_width=True,
+                        disabled=disabled, help=help_text):
                 return "next"
 
     return None

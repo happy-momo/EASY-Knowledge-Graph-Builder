@@ -9,6 +9,8 @@ from typing import Dict, Any, Optional, Tuple
 from html import escape as html_escape
 
 from config.app_config import SCHEMA_TEMPLATES, HELP_TEXTS
+from utils.schema_visualizer import render_schema_graph, render_schema_details
+from components.icons import icon
 
 
 def render_schema_selection() -> Tuple[Optional[Dict], str]:
@@ -45,41 +47,47 @@ def render_schema_selection() -> Tuple[Optional[Dict], str]:
 
 
 def render_template_selection() -> Tuple[Optional[Dict], str]:
-    """渲染模板选择界面（专业版）"""
+    """渲染模板选择界面（专业版，2 列网格）"""
     template_names = list(SCHEMA_TEMPLATES.keys())
     cols = st.columns(2)
 
     for i, name in enumerate(template_names):
         template = SCHEMA_TEMPLATES[name]
-        col = cols[i % 2]
 
-        is_selected = st.session_state.get('selected_template') == name
+        with cols[i % 2]:
+            is_selected = st.session_state.get('selected_template') == name
 
-        # 使用 info-card 替代全背景色卡片
-        border_color = "#4F46E5" if is_selected else "#E2E8F0"
-        left_border = "4px solid #4F46E5" if is_selected else "4px solid transparent"
+            border_color = "var(--color-primary-600)" if is_selected else "var(--border-light)"
+            left_border = "var(--color-primary-600)" if is_selected else "transparent"
+            shadow = "var(--shadow-md)" if is_selected else "var(--shadow-xs)"
 
-        card_html = (
-            f'<div style="padding: 1rem; margin-bottom: 0.5rem; background: #FFFFFF; border: 1px solid {border_color}; border-left: {left_border}; border-radius: 10px; box-shadow: {"0 2px 4px rgba(0,0,0,0.06)" if is_selected else "0 1px 2px rgba(0,0,0,0.04)"};">'
-            f'<div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.35rem; font-size: 1rem;">{name}</div>'
-            f'<div style="color: var(--text-primary); font-size: 0.875rem; margin-bottom: 0.5rem;">{template["description"]}</div>'
-            f'<div style="color: var(--text-primary); font-size: 0.8rem;">实体: {len(template["entities"])}种 | 关系: {len(template["relationships"])}种</div>'
-            f'</div>'
-        )
+            card_html = (
+                f'<div style="padding: 1rem; margin-bottom: 0.5rem; background: var(--bg-elevated); '
+                f'border: 1px solid {border_color}; border-left: 4px solid {left_border}; '
+                f'border-radius: 10px; box-shadow: {shadow}; transition: all 0.2s ease;">'
+                f'<div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.35rem; font-size: 1rem;">{html_escape(name)}</div>'
+                f'<div style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem;">{html_escape(template.get("description", ""))}</div>'
+                f'<div style="color: var(--text-tertiary); font-size: 0.8rem;">实体: {len(template.get("entities", []))}种 | 关系: {len(template.get("relationships", []))}种</div>'
+                f'</div>'
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
 
-        if st.button("选择", key=f"template_{name}", use_container_width=True):
-            st.session_state['selected_template'] = name
-            st.rerun()
-
-        st.markdown(card_html, unsafe_allow_html=True)
+            if st.button(
+                "✓ 已选中" if is_selected else "选择此模板",
+                key=f"template_{name}",
+                use_container_width=True,
+                type="primary" if is_selected else "secondary"
+            ):
+                st.session_state['selected_template'] = name
+                st.rerun()
 
     selected_name = st.session_state.get('selected_template')
     if selected_name and selected_name in SCHEMA_TEMPLATES:
         schema_dict = SCHEMA_TEMPLATES[selected_name]
         schema_yaml_str = yaml.dump(schema_dict, allow_unicode=True, sort_keys=False)
 
-        st.markdown('<p style="color: var(--text-primary); font-weight: 600; margin: 1rem 0 0.5rem 0;">Schema预览</p>', unsafe_allow_html=True)
-        render_schema_preview(schema_dict)
+        st.markdown('<p style="color: var(--text-primary); font-weight: 600; margin: 1rem 0 0.5rem 0;">Schema 可视化</p>', unsafe_allow_html=True)
+        render_schema_visualization(schema_dict, schema_yaml_str)
 
         return schema_dict, schema_yaml_str
 
@@ -104,7 +112,7 @@ def render_yaml_upload() -> Tuple[Optional[Dict], str]:
 
             schema_yaml_str = yaml.dump(schema_dict, allow_unicode=True, sort_keys=False)
             st.success(f"解析成功：{uploaded_file.name}")
-            render_schema_preview(schema_dict)
+            render_schema_visualization(schema_dict, schema_yaml_str)
 
             return schema_dict, schema_yaml_str
 
@@ -141,6 +149,8 @@ relationships:
         label_visibility="collapsed"
     )
 
+    st.caption("输入完成后点击「解析Schema」解析，解析后即可继续下一步")
+
     if st.button("解析Schema", key="parse_manual_schema", type="primary"):
         try:
             schema_dict = yaml.safe_load(yaml_input)
@@ -150,7 +160,7 @@ relationships:
                 return None, ""
 
             st.success("解析成功")
-            render_schema_preview(schema_dict)
+            render_schema_visualization(schema_dict, yaml_input)
 
             return schema_dict, yaml_input
 
@@ -159,6 +169,24 @@ relationships:
             return None, ""
 
     return None, ""
+
+
+def render_schema_visualization(schema_dict: Dict, schema_yaml_str: str = ""):
+    """渲染 Schema 可视化（结构图 / 明细表 / 原始 YAML 三栏切换）"""
+    tab_graph, tab_detail, tab_yaml = st.tabs(["结构图", "明细表", "原始 YAML"])
+
+    with tab_graph:
+        st.caption("实体为节点，关系为带箭头连线；悬浮节点可查看属性。")
+        st.markdown(render_schema_graph(schema_dict), unsafe_allow_html=True)
+
+    with tab_detail:
+        render_schema_preview(schema_dict)
+
+    with tab_yaml:
+        if schema_yaml_str:
+            st.code(schema_yaml_str, language="yaml")
+        else:
+            st.caption("无 YAML 内容")
 
 
 def render_schema_preview(schema_dict: Dict):
@@ -170,9 +198,9 @@ def render_schema_preview(schema_dict: Dict):
     total_props = sum(len(e.get('properties', [])) for e in entities)
     stat_html = (
         '<div style="display: flex; gap: 1.5rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #6B7280;">'
-        f'<span>📋 {len(entities)} 个实体</span>'
-        f'<span>🔗 {len(relationships)} 个关系</span>'
-        f'<span>🏷️ {total_props} 个属性</span>'
+        f'<span style="display: inline-flex; align-items: center; gap: 4px;">{icon("clipboard", 14, "#6B7280")} {len(entities)} 个实体</span>'
+        f'<span style="display: inline-flex; align-items: center; gap: 4px;">{icon("link", 14, "#6B7280")} {len(relationships)} 个关系</span>'
+        f'<span style="display: inline-flex; align-items: center; gap: 4px;">{icon("tag", 14, "#6B7280")} {total_props} 个属性</span>'
         '</div>'
     )
     st.markdown(stat_html, unsafe_allow_html=True)
@@ -205,7 +233,7 @@ def render_schema_preview(schema_dict: Dict):
         entity_rows += (
             f'<div style="display: grid; grid-template-columns: 100px 1fr; gap: 0; background: {bg}; '
             f'border-bottom: 1px solid #F1F5F9; font-size: 0.78rem;">'
-            f'<div style="padding: 5px 10px; font-weight: 600; color: #1F2937;">{html_escape(entity["name"])}</div>'
+            f'<div style="padding: 5px 10px; font-weight: 600; color: #1F2937;">{html_escape(str(entity.get("name", "未命名")))}</div>'
             f'<div style="padding: 5px 10px; line-height: 1.6;">{prop_tags}</div>'
             f'</div>'
         )
@@ -239,19 +267,19 @@ def render_schema_preview(schema_dict: Dict):
         '#0369A1', '#6D28D9', '#854D0E', '#166534', '#991B1B'
     ]
     for i, entity in enumerate(entities):
-        entity_color_map[entity['name']] = (
+        entity_color_map[entity.get('name')] = (
             color_palette[i % len(color_palette)],
             text_palette[i % len(text_palette)]
         )
 
     rel_rows = ""
     for i, rel in enumerate(relationships):
-        head_name = html_escape(rel['head'])
-        rel_name = html_escape(rel['relation'])
-        tail_name = html_escape(rel['tail'])
+        head_name = html_escape(str(rel.get('head', '?')))
+        rel_name = html_escape(str(rel.get('relation', '?')))
+        tail_name = html_escape(str(rel.get('tail', '?')))
 
-        head_bg, head_color = entity_color_map.get(rel['head'], ('#F3F4F6', '#374151'))
-        tail_bg, tail_color = entity_color_map.get(rel['tail'], ('#F3F4F6', '#374151'))
+        head_bg, head_color = entity_color_map.get(rel.get('head'), ('#F3F4F6', '#374151'))
+        tail_bg, tail_color = entity_color_map.get(rel.get('tail'), ('#F3F4F6', '#374151'))
 
         bg = "#FFFFFF" if i % 2 == 0 else "#F9FAFB"
         rel_rows += (

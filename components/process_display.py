@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 import time
 from html import escape as html_escape
 
-from utils.progress_tracker import ProgressTracker, ProcessProgress
+from utils.progress_tracker import ProcessProgress
 
 
 # SVG Icons
@@ -59,8 +59,8 @@ def render_progress_indicator(progress: ProcessProgress):
         f'<span style="color: var(--text-primary); font-size: 0.9rem; font-weight: 500;">处理进度</span>'
         f'<span style="color: var(--color-primary-600); font-weight: 600; font-size: 1.1rem;">{progress_percent:.1f}%</span>'
         f'</div>'
-        f'<div style="height: 10px; background: #E2E8F0; border-radius: 10px; overflow: hidden;">'
-        f'<div style="width: {progress_percent}%; height: 100%; background: var(--color-primary-600); border-radius: 10px; transition: width 0.3s ease;"></div>'
+        f'<div style="height: 10px; background: var(--border-light); border-radius: 10px; overflow: hidden;">'
+        f'<div style="width: {progress_percent}%; height: 100%; background: var(--gradient-brand); border-radius: 10px; transition: width 0.3s ease;"></div>'
         f'</div>'
         f'</div>',
         unsafe_allow_html=True
@@ -165,7 +165,7 @@ def render_completion_page(stats: Dict):
         '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
         '</div>'
         f'<h2 style="color: var(--text-primary); margin-bottom: 0.5rem;">处理完成</h2>'
-        f'<p style="color: var(--text-primary); font-size: 1rem;">共处理 {stats["total_chunks"]} 个文本块，提取了 {stats["total_triples"]} 个三元组。</p>'
+        f'<p style="color: var(--text-primary); font-size: 1rem;">共处理 {stats.get("total_chunks", 0)} 个文本块，提取了 {stats.get("total_triples", 0)} 个三元组。</p>'
         '</div>',
         unsafe_allow_html=True
     )

@@ -10,10 +10,11 @@ from typing import List, Dict, Tuple, Optional
 from datetime import datetime
 
 from utils.doc_loader import load_document
+from utils.file_manager import FileManager  # 复用 SUPPORTED_EXTENSIONS
 
 
-# 支持的文件扩展名
-SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.xlsx', '.xls', '.txt']
+# 支持的文件扩展名（复用 FileManager 定义，避免重复维护）
+SUPPORTED_EXTENSIONS = FileManager.SUPPORTED_EXTENSIONS
 
 
 def scan_folder(folder_path: str, recursive: bool = True) -> List[Dict]:

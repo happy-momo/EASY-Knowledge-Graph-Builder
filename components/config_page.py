@@ -8,11 +8,9 @@ import streamlit as st
 from typing import Dict, Tuple, List
 
 from utils.llm_config import (
-    LLMConfig, get_preset_configs, get_api_key_from_env,
-    test_llm_connection, get_required_package, get_vendor_info,
-    get_default_base_url, get_vendor_type_label,
-    OPENAI_COMPATIBLE_VENDORS, NATIVE_LANGCHAIN_VENDORS,
-    get_all_vendor_options
+    LLMConfig, get_api_key_from_env, test_llm_connection,
+    get_vendor_type_label, get_unified_vendor_list, resolve_vendor,
+    get_vendor_label
 )
 from utils.neo4j_manager import Neo4jManager
 from config.app_config import DEFAULT_CONFIG, HELP_TEXTS
@@ -38,172 +36,122 @@ def render_config_section() -> Dict:
 
 
 def render_llm_config_simple() -> Dict:
-    """渲染双路由 LLM 配置界面"""
+    """渲染简化版 LLM 配置界面（单一服务商选择，隐藏路由细节）"""
     st.markdown('<h4 style="color: var(--text-primary); margin-bottom: 0.5rem;">LLM 模型配置</h4>', unsafe_allow_html=True)
+    st.caption("选择服务商并填入 API Key 与模型名称即可，接口差异由系统自动处理。")
 
-    # ---- 从缓存中恢复配置 ----
+    # ---- 从缓存恢复 ----
     cached_llm = {}
     if st.session_state.get('config') and st.session_state.config.get('llm'):
         cached_llm = st.session_state.config['llm']
 
-    # ---- Step 1: 选择厂家类型 ----
-    vendor_type_options = {
-        "openai_compatible": "🔌 OpenAI 兼容接口（智谱/阿里/DeepSeek/Kimi/自定义）",
-        "native_langchain": "🧩 原生 LangChain（OpenAI/Anthropic/Gemini）",
-    }
+    vendors = get_unified_vendor_list()
+    vendor_labels = [v["label"] for v in vendors]
 
-    # 从缓存恢复或默认
-    if 'llm_vendor_type' not in st.session_state:
-        st.session_state.llm_vendor_type = cached_llm.get('vendor_type', 'openai_compatible')
-
-    selected_vendor_type_display = st.radio(
-        "厂家类型",
-        options=list(vendor_type_options.keys()),
-        format_func=lambda x: vendor_type_options[x],
-        index=list(vendor_type_options.keys()).index(st.session_state.llm_vendor_type),
-        horizontal=True,
-        help="选择接口类型决定模型初始化方式"
-    )
-    vendor_type = selected_vendor_type_display
-    st.session_state.llm_vendor_type = vendor_type
-
-    # ---- Step 2: 选择具体厂商 ----
-    if vendor_type == "openai_compatible":
-        vendor_registry = OPENAI_COMPATIBLE_VENDORS
+    # 默认选中：缓存 > 环境变量自动检测 > 第一项
+    default_label = vendors[0]["label"]
+    cached_label = get_vendor_label(cached_llm.get('vendor_type', ''), cached_llm.get('provider', ''))
+    if cached_label:
+        default_label = cached_label
     else:
-        vendor_registry = NATIVE_LANGCHAIN_VENDORS
+        for v in vendors:
+            if get_api_key_from_env(v["provider"]):
+                default_label = v["label"]
+                break
 
-    provider_options = list(vendor_registry.keys())
-    provider_display_options = [vendor_registry[p]["display_name"] for p in provider_options]
-
-    # 从缓存恢复厂商选择
-    provider_key = f"llm_provider_{vendor_type}"
-    if provider_key not in st.session_state:
-        cached_provider = cached_llm.get('provider', provider_options[0])
-        st.session_state[provider_key] = cached_provider if cached_provider in provider_options else provider_options[0]
-
-    # 确保保存的 provider 在当前类型下有效
-    saved_provider = st.session_state[provider_key]
-    if saved_provider not in provider_options:
-        saved_provider = provider_options[0]
-        st.session_state[provider_key] = saved_provider
-
-    default_provider_idx = provider_options.index(saved_provider)
-
-    selected_provider_display = st.selectbox(
-        "选择厂商",
-        options=provider_display_options,
-        index=default_provider_idx,
-        help="选择具体的 LLM 厂商"
+    selected_label = st.selectbox(
+        "模型服务商",
+        options=vendor_labels,
+        index=vendor_labels.index(default_label),
+        help="选择 LLM 服务商，系统会自动适配接口协议"
     )
-    provider = provider_options[provider_display_options.index(selected_provider_display)]
-    st.session_state[provider_key] = provider
+    vendor = resolve_vendor(selected_label)
 
-    # ---- 获取厂商信息 ----
-    vendor_info = vendor_registry[provider]
-    default_endpoint = vendor_info.get("base_url", "")
-    model_examples = vendor_info.get("model_examples", "")
-    required_package = get_required_package(vendor_type, provider)
-
-    # 显示厂商信息卡片
-    route_label = get_vendor_type_label(vendor_type)
-    st.markdown(f"""
-    <div class="info-card" style="margin: 0.75rem 0; border-left-color: var(--color-primary-600);">
-        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">
-            {vendor_info['display_name']}
-        </div>
-        <div style="font-size: 0.85rem; color: var(--text-secondary);">
-            接口类型：<code style="background: #F3F4F6; padding: 2px 4px; border-radius: 3px;">{route_label}</code>
-            &nbsp;|&nbsp; 所需包：<code style="background: #F3F4F6; padding: 2px 4px; border-radius: 3px;">{required_package}</code>
-        </div>
-        <div style="font-size: 0.8rem; color: var(--text-tertiary); margin-top: 0.25rem;">
-            示例模型：{model_examples}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ---- Step 3: API 端点 ----
-    endpoint_label = "Base URL" if vendor_type == "openai_compatible" else "API 端点"
-    endpoint_help = "OpenAI 兼容接口的 Base URL" if vendor_type == "openai_compatible" else "API 端点地址（Google Gemini 可留空）"
-
-    # Google 不需要端点
-    is_google = (vendor_type == "native_langchain" and provider == "google")
-
-    # 从缓存恢复端点值
-    cached_endpoint = cached_llm.get('api_endpoint', '')
-    endpoint_default = cached_endpoint if cached_endpoint else (default_endpoint if default_endpoint else "")
-
-    api_endpoint = st.text_input(
-        endpoint_label,
-        value=endpoint_default,
-        placeholder="https://api.example.com/v1/" if not is_google else "无需填写",
-        help=endpoint_help
-    )
-
-    # ---- Step 4: API Key ----
-    env_key = get_api_key_from_env(provider)
+    # ---- API Key（自动从环境变量读取） ----
+    env_key = get_api_key_from_env(vendor["provider"])
     if env_key:
         st.markdown(
-            '<div style="background-color: #D1FAE5; border: 1px solid #6EE7B7; '
-            'border-radius: 8px; padding: 10px 16px; margin: 8px 0; '
-            'color: #065F46; font-size: 0.9rem;">'
-            f'✓ 已从环境变量检测到 API Key ({env_key[:8]}...)'
+            '<div style="background-color: var(--color-success-bg); border: 1px solid var(--color-success); '
+            'border-radius: 8px; padding: 10px 16px; margin: 8px 0; color: var(--text-success); font-size: 0.9rem;">'
+            f'✓ 已从环境变量检测到 API Key（{env_key[:6]}...）'
             '</div>',
             unsafe_allow_html=True
         )
-
-    # 从缓存恢复 API Key
     cached_api_key = cached_llm.get('api_key', '')
     api_key_default = env_key if env_key else cached_api_key
-
     api_key = st.text_input(
         "API Key",
         type="password",
-        placeholder=f"输入{vendor_info['display_name']} API Key",
+        placeholder=f"输入 {vendor['label']} API Key",
         value=api_key_default,
         help="支持从环境变量自动读取"
     )
 
-    # ---- Step 5: 模型名称 ----
-    # 从缓存恢复模型名称
+    # ---- 模型名称 ----
     cached_model_name = cached_llm.get('model_name', '')
-
     model_name = st.text_input(
         "模型名称",
         value=cached_model_name,
-        placeholder=model_examples,
-        help="输入要使用的模型名称"
+        placeholder=vendor["model_examples"],
+        help=f"示例：{vendor['model_examples']}"
     )
 
-    # ---- Step 6: 测试连接 ----
+    # ---- API 端点 ----
+    is_google = vendor["is_google"]
+    is_custom = vendor["is_custom"]
+    cached_endpoint = cached_llm.get('api_endpoint', '')
+    if is_google:
+        api_endpoint = ""
+    elif is_custom:
+        # 自定义：端点必填，正常显示
+        api_endpoint = st.text_input(
+            "API 端点 (Base URL)",
+            value=cached_endpoint,
+            placeholder="https://api.example.com/v1/",
+            help="自定义兼容 OpenAI 接口的服务地址"
+        )
+    else:
+        # 其他厂商：端点已预填，置于高级设置
+        default_endpoint = cached_endpoint if cached_endpoint else vendor["base_url"]
+        with st.expander("高级设置"):
+            api_endpoint = st.text_input(
+                "API 端点 (Base URL)",
+                value=default_endpoint,
+                help="通常无需修改"
+            )
+
+    # ---- 测试连接 ----
     can_test = bool(api_key and model_name and (api_endpoint or is_google))
     if can_test:
         if st.button("测试连接", key="test_llm", type="secondary"):
             with st.spinner("测试中..."):
-                config = LLMConfig(
-                    api_endpoint=api_endpoint if api_endpoint else "",
-                    api_key=api_key,
-                    model_name=model_name,
-                    vendor_type=vendor_type,
-                    provider=provider
-                )
-                success, message = test_llm_connection(config)
-                if success:
-                    st.success(message)
-                else:
-                    st.error(message)
+                try:
+                    cfg = LLMConfig(
+                        api_endpoint=api_endpoint,
+                        api_key=api_key,
+                        model_name=model_name,
+                        vendor_type=vendor["vendor_type"],
+                        provider=vendor["provider"]
+                    )
+                    success, message = test_llm_connection(cfg)
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
+                except (ValueError, ImportError) as e:
+                    st.error(str(e))
 
     # ---- 返回配置 ----
     if api_key and model_name and (api_endpoint or is_google):
         try:
-            llm_config = LLMConfig(
-                api_endpoint=api_endpoint if api_endpoint else "",
+            cfg = LLMConfig(
+                api_endpoint=api_endpoint,
                 api_key=api_key,
                 model_name=model_name,
-                vendor_type=vendor_type,
-                provider=provider
+                vendor_type=vendor["vendor_type"],
+                provider=vendor["provider"]
             )
-            return llm_config.to_dict()
+            return cfg.to_dict()
         except ValueError as e:
             st.error(str(e))
 

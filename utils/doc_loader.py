@@ -25,6 +25,10 @@ def smart_text_segmentation(text, max_chunk_size=2000, min_chunk_size=500):
     """
     # 1. 预处理：清理特殊符号，保留语义关系
     cleaned_text = re.sub(r'[^一-龥a-zA-Z0-9\s,，.。:：;；!！?？]', '', text)
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+
+    if not cleaned_text:
+        return []
 
     # 2. 按段落分割
     paragraphs = [p.strip() for p in cleaned_text.split('\n') if p.strip()]
@@ -103,15 +107,6 @@ def smart_text_segmentation(text, max_chunk_size=2000, min_chunk_size=500):
     return final_chunks
 
 
-def clean_special_characters(text):
-    """
-    清理特殊符号，保留语义关系
-    """
-    cleaned = re.sub(r'[^一-龥a-zA-Z0-9\s,，.。:：;；!！?？\-\—（）()【】\[\]《》]', '', text)
-    cleaned = re.sub(r'\s+', ' ', cleaned)
-    return cleaned.strip()
-
-
 def load_document(file_source, max_chunk_size=2000, min_chunk_size=500):
     """
     根据文件类型加载内容，返回智能切分的文本块列表
@@ -124,118 +119,111 @@ def load_document(file_source, max_chunk_size=2000, min_chunk_size=500):
     Returns:
         (文本块列表，错误信息)
     """
-    # 判断是文件路径还是文件对象
     if isinstance(file_source, str):
-        # 文件路径
         file_path = Path(file_source)
         if not file_path.exists():
             return None, f"文件不存在：{file_source}"
-
         file_type = file_path.suffix.lower().lstrip('.')
-
-        try:
-            text_content = _read_file_content(file_path, file_type)
-        except Exception as e:
-            return None, f"解析失败：{str(e)}"
     else:
         # Streamlit 上传的文件对象
         file_type = file_source.name.split('.')[-1].lower()
 
-        try:
-            text_content = _read_uploaded_file_content(file_source, file_type)
-        except Exception as e:
-            return None, f"解析失败：{str(e)}"
+    try:
+        text_content = _read_content(file_source, file_type)
+    except Exception as e:
+        return None, f"解析失败：{str(e)}"
 
-    if text_content is None:
+    if not text_content:
         return None, "文档内容为空或无法解析"
 
-    # 清理特殊符号并智能切分
-    cleaned_text = clean_special_characters(text_content)
-    if not cleaned_text:
+    chunks = smart_text_segmentation(text_content, max_chunk_size, min_chunk_size)
+    if not chunks:
         return None, "文档内容为空或无法解析"
 
-    chunks = smart_text_segmentation(cleaned_text, max_chunk_size, min_chunk_size)
     return chunks, None
 
 
-def _read_file_content(file_path: Path, file_type: str) -> str:
-    """从文件路径读取内容"""
-    if file_type in ['xlsx', 'xls']:
-        df = pd.read_excel(file_path)
-        text_list = []
-        for index, row in df.iterrows():
-            row_text = " ".join([str(cell) for cell in row if pd.notna(cell)])
-            if row_text.strip():
-                text_list.append(row_text)
-        return "\n".join(text_list)
+def _read_content(source, file_type: str) -> str:
+    """
+    统一读取函数：支持文件路径（str/Path）和 Streamlit 上传文件对象。
 
-    elif file_type == 'pdf':
-        reader = PdfReader(str(file_path))
-        text_content = ""
-        for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text.strip():
-                text_content += page_text + "\n"
-        return text_content
+    Args:
+        source: 文件路径或上传文件对象
+        file_type: 文件类型（不含点号，小写）
 
-    elif file_type in ['docx', 'doc']:
-        doc = Document(str(file_path))
-        text_content = ""
-        for para in doc.paragraphs:
-            if para.text.strip():
-                text_content += para.text + "\n"
-        return text_content
+    Returns:
+        提取的文本内容
+    """
+    if file_type in ('xlsx', 'xls'):
+        return _read_excel(source)
 
-    elif file_type == 'txt':
-        # 尝试多种编码解码
-        for encoding in ['utf-8', 'gbk', 'gb2312', 'gb18030', 'latin-1']:
+    if file_type == 'pdf':
+        return _read_pdf(source)
+
+    if file_type in ('docx', 'doc'):
+        return _read_docx(source)
+
+    if file_type == 'txt':
+        return _read_txt(source)
+
+    return ""
+
+
+def _read_excel(source):
+    """读取 Excel 文件"""
+    df = pd.read_excel(source)
+    lines = []
+    for _, row in df.iterrows():
+        row_text = " ".join(str(cell) for cell in row if pd.notna(cell))
+        if row_text.strip():
+            lines.append(row_text)
+    return "\n".join(lines)
+
+
+def _read_pdf(source):
+    """读取 PDF 文件"""
+    if isinstance(source, (str, Path)):
+        reader = PdfReader(str(source))
+    else:
+        reader = PdfReader(source)
+    parts = []
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text and page_text.strip():
+            parts.append(page_text)
+    return "\n".join(parts)
+
+
+def _read_docx(source):
+    """读取 Word 文档"""
+    if isinstance(source, (str, Path)):
+        doc = Document(str(source))
+    else:
+        doc = Document(source)
+    parts = []
+    for para in doc.paragraphs:
+        if para.text and para.text.strip():
+            parts.append(para.text)
+    return "\n".join(parts)
+
+
+def _read_txt(source):
+    """读取文本文件（支持多种编码）"""
+    encodings = ['utf-8', 'gbk', 'gb2312', 'gb18030', 'latin-1']
+    if isinstance(source, (str, Path)):
+        for enc in encodings:
             try:
-                with open(file_path, 'r', encoding=encoding) as f:
+                with open(source, 'r', encoding=enc) as f:
                     return f.read()
             except (UnicodeDecodeError, LookupError):
                 continue
-        return None
+        return ""
 
-    else:
-        return None
-
-
-def _read_uploaded_file_content(uploaded_file, file_type: str) -> str:
-    """从上传的文件对象读取内容"""
-    if file_type in ['xlsx', 'xls']:
-        df = pd.read_excel(uploaded_file)
-        text_list = []
-        for index, row in df.iterrows():
-            row_text = " ".join([str(cell) for cell in row if pd.notna(cell)])
-            if row_text.strip():
-                text_list.append(row_text)
-        return "\n".join(text_list)
-
-    elif file_type == 'pdf':
-        reader = PdfReader(uploaded_file)
-        text_content = ""
-        for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text.strip():
-                text_content += page_text + "\n"
-        return text_content
-
-    elif file_type in ['docx', 'doc']:
-        doc = Document(uploaded_file)
-        text_content = ""
-        for para in doc.paragraphs:
-            if para.text.strip():
-                text_content += para.text + "\n"
-        return text_content
-
-    elif file_type == 'txt':
-        raw_bytes = uploaded_file.read()
-        for encoding in ['utf-8', 'gbk', 'gb2312', 'gb18030', 'latin-1']:
-            try:
-                return raw_bytes.decode(encoding)
-            except (UnicodeDecodeError, LookupError):
-                continue
-        return None
-
-    else:
-        return None
+    # Streamlit 上传文件对象
+    raw_bytes = source.read()
+    for enc in encodings:
+        try:
+            return raw_bytes.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return ""

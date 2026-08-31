@@ -4,14 +4,17 @@
 支持文件的增删改查、文件夹扫描、状态更新等操作。
 """
 
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, field, fields
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 import os
 import uuid
+import logging
 from datetime import datetime
 
 from utils.state_manager import state_manager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -54,8 +57,10 @@ class FileInfo:
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'FileInfo':
-        """从字典创建"""
-        return cls(**data)
+        """从字典创建（容错：忽略未知键，缺失键使用默认值）"""
+        valid_fields = {f.name for f in fields(cls)}
+        filtered = {k: v for k, v in data.items() if k in valid_fields}
+        return cls(**filtered)
 
 
 class FileManager:
@@ -78,6 +83,31 @@ class FileManager:
     def _generate_id(self) -> str:
         """生成唯一ID"""
         return str(uuid.uuid4())[:8]
+
+    def _delete_uploaded_file_from_disk(self, file_info: 'FileInfo'):
+        """
+        删除已上传到 .data/uploads 的物理文件。
+
+        安全策略：
+        - 仅删除 source == 'upload' 的文件（文件夹导入的 original_path 指向
+          用户原始文件，绝不删除）。
+        - 仅当路径解析后确实位于 upload_dir 内部时才删除，防止 path 被篡改
+          误删其它文件。
+        """
+        if file_info.source != 'upload' or not file_info.path:
+            return
+        try:
+            path = Path(file_info.path)
+            upload_dir = state_manager.upload_dir.resolve()
+            if path.exists():
+                resolved = path.resolve()
+                # 确保位于 upload_dir 内（或就是其下文件）
+                if upload_dir == resolved or upload_dir in resolved.parents:
+                    path.unlink()
+                else:
+                    logger.warning(f"拒绝删除 upload_dir 外的文件: {file_info.path}")
+        except Exception as e:
+            logger.warning(f"删除上传文件失败 {file_info.path}: {e}")
 
     def add_uploaded_file(self, uploaded_file, chunks: List[str] = None) -> FileInfo:
         """
@@ -157,10 +187,13 @@ class FileManager:
         Returns:
             是否移除成功
         """
+        target = self.get_file(file_id)
         initial_count = len(self._files)
         self._files = [f for f in self._files if f.id != file_id]
 
         if len(self._files) < initial_count:
+            if target is not None:
+                self._delete_uploaded_file_from_disk(target)
             self._save_files()
             return True
         return False
@@ -168,6 +201,8 @@ class FileManager:
     def remove_by_folder(self, folder_path: str) -> int:
         """
         移除来自指定文件夹的所有文件
+
+        文件夹导入的文件不会从磁盘删除（保留用户原始文件）。
 
         Args:
             folder_path: 文件夹路径
@@ -191,6 +226,9 @@ class FileManager:
             清空的文件数量
         """
         count = len(self._files)
+        # 删除所有上传到 .data/uploads 的物理文件（文件夹导入的不删）
+        for f in self._files:
+            self._delete_uploaded_file_from_disk(f)
         self._files = []
         self._save_files()
         return count
@@ -313,14 +351,20 @@ class FileManager:
         """
         获取所有文件的分块（用于处理）
 
+        chunk_index 为【全局唯一】序号（跨文件连续递增），保证 ProgressTracker
+        按 chunk_index upsert/查询时不会因不同文件的局部序号重复而互相覆盖
+        （否则多文件抽取会丢失三元组、断点续传会错乱）。
+
         Returns:
             (file_id, file_name, chunk_index, chunk_content) 元组列表
         """
         all_chunks = []
+        global_index = 0
         for file in self._files:
             if file.chunks:
-                for i, chunk in enumerate(file.chunks):
-                    all_chunks.append((file.id, file.name, i, chunk))
+                for chunk in file.chunks:
+                    all_chunks.append((file.id, file.name, global_index, chunk))
+                    global_index += 1
         return all_chunks
 
 

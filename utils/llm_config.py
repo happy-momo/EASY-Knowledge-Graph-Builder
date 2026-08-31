@@ -157,6 +157,69 @@ def get_vendor_type_label(vendor_type: str) -> str:
     return labels.get(vendor_type, vendor_type)
 
 
+# ==================== 统一服务商列表（用户视角，隐藏路由细节） ====================
+
+# 推荐顺序：国内常用优先，再全球主流，最后自定义
+_UNIFIED_VENDOR_ORDER = [
+    ("zhipu", "openai_compatible"),
+    ("alibaba", "openai_compatible"),
+    ("deepseek", "openai_compatible"),
+    ("moonshot", "openai_compatible"),
+    ("openai", "native_langchain"),
+    ("anthropic", "native_langchain"),
+    ("google", "native_langchain"),
+    ("custom", "openai_compatible"),
+]
+
+
+def get_unified_vendor_list() -> List[Dict]:
+    """
+    获取统一的服务商列表（按推荐顺序），合并双路由注册表。
+
+    每项字段：
+        label           显示名称（用户唯一可见标识）
+        vendor_type     路由类型（内部使用）
+        provider        厂商标识（内部使用）
+        base_url        默认端点
+        model_examples  示例模型
+        env_keys        环境变量名列表
+        is_google       是否为 Google（无需端点）
+        is_custom       是否为自定义（端点必填）
+    """
+    result = []
+    for provider, vendor_type in _UNIFIED_VENDOR_ORDER:
+        info = get_vendor_info(vendor_type, provider)
+        if not info:
+            continue
+        result.append({
+            "label": info["display_name"],
+            "vendor_type": vendor_type,
+            "provider": provider,
+            "base_url": info.get("base_url", ""),
+            "model_examples": info.get("model_examples", ""),
+            "env_keys": info.get("env_keys", []),
+            "is_google": (vendor_type == "native_langchain" and provider == "google"),
+            "is_custom": (provider == "custom"),
+        })
+    return result
+
+
+def resolve_vendor(label: str) -> Optional[Dict]:
+    """根据显示名称解析服务商路由信息"""
+    for v in get_unified_vendor_list():
+        if v["label"] == label:
+            return v
+    return None
+
+
+def get_vendor_label(vendor_type: str, provider: str) -> Optional[str]:
+    """根据路由信息反查显示名称（用于从缓存恢复选中项）"""
+    for v in get_unified_vendor_list():
+        if v["vendor_type"] == vendor_type and v["provider"] == provider:
+            return v["label"]
+    return None
+
+
 # ==================== LLM 配置数据类 ====================
 
 @dataclass
@@ -463,7 +526,7 @@ def get_package_install_hint(vendor_type: str, provider: str) -> str:
 
 # ==================== 模型创建（双路由核心） ====================
 
-def create_chat_model(config: LLMConfig):
+def create_chat_model(config: LLMConfig, http_client=None):
     """
     根据配置动态创建 LangChain Chat 模型（双路由）
 
@@ -472,6 +535,9 @@ def create_chat_model(config: LLMConfig):
 
     Args:
         config: LLM 配置
+        http_client: 可选的复用 httpx.Client（路径 A）。批量抽取时由外层
+            创建一次并传入，避免每个分块都新建一个连接池导致文件描述符泄漏。
+            为 None 时按原行为自建（适用于单次调用/连接测试）。
 
     Returns:
         LangChain Chat 模型实例
@@ -504,17 +570,20 @@ def create_chat_model(config: LLMConfig):
         # 修复 httpx + h2(HTTP/2) 导致部分国内厂商 SSL 连接失败的问题
         # 当 h2 包已安装时，httpx 默认尝试 HTTP/2 协商，部分厂商 SSL 不兼容
         # 解决方案：注入自定义 httpx.Client，强制使用 HTTP/1.1
-        try:
-            import httpx
-            http_client = httpx.Client(
-                transport=httpx.HTTPTransport(),
-                timeout=httpx.Timeout(config.timeout, connect=10.0),
-            )
+        if http_client is not None:
             kwargs["http_client"] = http_client
-            logger.debug("Injected custom httpx client (HTTP/1.1 only) for compatibility")
-        except ImportError:
-            # httpx 不可用时走默认行为
-            pass
+            logger.debug("Reusing provided httpx client (HTTP/1.1 only)")
+        else:
+            try:
+                import httpx
+                kwargs["http_client"] = httpx.Client(
+                    transport=httpx.HTTPTransport(),
+                    timeout=httpx.Timeout(config.timeout, connect=10.0),
+                )
+                logger.debug("Injected custom httpx client (HTTP/1.1 only) for compatibility")
+            except ImportError:
+                # httpx 不可用时走默认行为
+                pass
 
         return ChatOpenAI(**kwargs)
 

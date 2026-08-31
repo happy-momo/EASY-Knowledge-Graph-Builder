@@ -11,6 +11,7 @@ from html import escape as html_escape
 from utils.file_manager import FileInfo, file_manager
 from utils.folder_loader import scan_folder, load_folder, validate_folder, get_folder_info
 from utils.doc_loader import load_document
+from components.icons import file_type_icon
 
 # 每页显示的文件数
 PAGE_SIZE = 5
@@ -275,15 +276,8 @@ def render_pagination(current_page: int, total_pages: int):
 
 def render_file_item(file: FileInfo):
     """渲染单个文件条目 - 带分块预览展开"""
-    icon_map = {
-        '.pdf': '&#128214;',
-        '.docx': '&#128196;',
-        '.doc': '&#128196;',
-        '.xlsx': '&#128197;',
-        '.xls': '&#128197;',
-        '.txt': '&#128196;',
-    }
-    icon = icon_map.get(file.type, '&#128196;')
+    # 文件类型图标用统一 SVG（替代 emoji，跨系统尺寸/颜色一致）
+    icon = file_type_icon(file.type)
 
     status_map = {
         'pending': ('warning', '待处理'),
@@ -357,13 +351,19 @@ def render_chunks_preview(file: FileInfo):
 
     for i in range(start, end):
         chunk = chunks[i]
-        # 截断显示，避免超长内容
-        preview = chunk[:300] + ('...' if len(chunk) > 300 else '')
+        safe_chunk = html_escape(chunk)
         with st.container():
             st.markdown(
-                f'<div style="background: #F8F9FA; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin: 4px 0;">'
-                f'<div style="font-size: 0.8rem; color: #6B7280; margin-bottom: 6px;">分块 {i + 1}/{len(chunks)} · {len(chunk)} 字符</div>'
-                f'<div style="font-size: 0.85rem; color: var(--text-primary); line-height: 1.5; white-space: pre-wrap; word-break: break-all;">{html_escape(preview)}</div>'
+                f'<div style="background: var(--bg-secondary); border: 1px solid var(--border-light); '
+                f'border-radius: var(--radius-md); padding: 12px; margin: 4px 0;">'
+                f'<div style="display:flex;justify-content:space-between;font-size: 0.8rem; '
+                f'color: var(--text-secondary); margin-bottom: 6px;">'
+                f'<span>分块 {i + 1}/{len(chunks)}</span>'
+                f'<span>{len(chunk)} 字符</span>'
+                f'</div>'
+                f'<div style="font-size: 0.85rem; color: var(--text-primary); line-height: 1.6; '
+                f'white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto;">'
+                f'{safe_chunk}</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -377,7 +377,7 @@ def render_chunks_preview(file: FileInfo):
                 st.rerun()
         with cp2:
             st.markdown(
-                f'<div style="text-align: center; color: #6B7280; font-size: 0.85rem; padding-top: 0.3rem;">分块 {chunk_page + 1}/{chunk_total_pages} 页</div>',
+                f'<div style="text-align: center; color: var(--text-tertiary); font-size: 0.85rem; padding-top: 0.3rem;">分块 {chunk_page + 1}/{chunk_total_pages} 页</div>',
                 unsafe_allow_html=True
             )
         with cp3:

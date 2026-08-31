@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import copy
 from html import escape as html_escape
 
-from utils.extractor import KnowledgeGraphTriple
+from components.icons import icon
 
 
 @dataclass
@@ -70,8 +70,27 @@ def render_review_panel(review_state: TripleReviewState) -> Tuple[str, Optional[
 
     Returns:
         (动作, 三元组索引) 或 ('', None)
+
+    动作契约：
+        edit_start  : 用户点击"编辑"，已设置 review_editing_idx，需 rerun
+        edit_save   : 用户在编辑表单点击"保存"，编辑结果存于 _pending_edited_triple
+        edit_cancel : 用户取消编辑
+        confirm / delete / confirm_all / skip_review / complete : 原有语义
     """
     st.markdown("### ✅ 三元组审核")
+
+    # ---- 编辑表单（置顶，处于编辑态时优先渲染，确保跨 rerun 可保存） ----
+    editing_idx = st.session_state.get('review_editing_idx')
+    if editing_idx is not None and 0 <= editing_idx < len(review_state.triples):
+        action, edited = render_triple_edit_modal(
+            editing_idx, review_state.triples[editing_idx]
+        )
+        if action == 'save' and edited:
+            st.session_state['_pending_edited_triple'] = edited
+            return ('edit_save', editing_idx)
+        elif action == 'cancel':
+            return ('edit_cancel', editing_idx)
+        st.markdown('<hr style="border: none; border-top: 1px solid var(--border-light); margin: 1rem 0;">', unsafe_allow_html=True)
 
     # 统计信息
     render_review_statistics(review_state)
@@ -79,7 +98,9 @@ def render_review_panel(review_state: TripleReviewState) -> Tuple[str, Optional[
     st.markdown("---")
 
     # 分页控制
-    total_pages = (len(review_state.triples) - 1) // review_state.page_size + 1
+    total_pages = max(1, (len(review_state.triples) - 1) // review_state.page_size + 1)
+    if review_state.current_page >= total_pages:
+        review_state.current_page = max(0, total_pages - 1)
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col1:
@@ -111,7 +132,11 @@ def render_review_panel(review_state: TripleReviewState) -> Tuple[str, Optional[
 
         action = render_triple_card(idx, triple, edited_triple, status)
 
-        if action:
+        if action == 'edit':
+            # 进入编辑态：记住正在编辑的索引，下一轮渲染编辑表单
+            st.session_state['review_editing_idx'] = idx
+            return ('edit_start', idx)
+        elif action:
             return (action, idx)
 
     # 快捷操作按钮
@@ -156,14 +181,14 @@ def render_triple_card(idx: int, triple: Dict, edited_triple: Optional[Dict],
     # 使用编辑后的版本（如果有）
     display_triple = edited_triple or triple
 
-    # 状态样式
+    # 状态样式（SVG 图标替代 emoji，跨系统颜色/尺寸一致）
     status_styles = {
-        'pending': ('⏳ 待审核', 'warning'),
-        'confirmed': ('✅ 已确认', 'success'),
-        'edited': ('✏️ 已编辑', 'info'),
-        'deleted': ('❌ 已删除', 'error')
+        'pending': (icon("clock", 13, "#92400E") + " 待审核", 'warning'),
+        'confirmed': (icon("check", 13, "#047857") + " 已确认", 'success'),
+        'edited': (icon("edit", 13, "#2563EB") + " 已编辑", 'info'),
+        'deleted': (icon("x", 13, "#991B1B") + " 已删除", 'error')
     }
-    status_text, status_type = status_styles.get(status, ('⚪ 未知', 'secondary'))
+    status_text, status_type = status_styles.get(status, (icon("circle", 13, "#6B7280") + " 未知", 'secondary'))
 
     # 对三元组值进行HTML转义，防止注入
     head_name = html_escape(str(display_triple.get('head', 'N/A')))
@@ -208,7 +233,7 @@ def render_triple_card(idx: int, triple: Dict, edited_triple: Optional[Dict],
             return 'confirm'
 
     with col2:
-        if st.button("✏ 编辑", key=f"edit_{idx}", use_container_width=True):
+        if st.button("编辑", key=f"edit_{idx}", use_container_width=True):
             return 'edit'
 
     with col3:
@@ -219,47 +244,50 @@ def render_triple_card(idx: int, triple: Dict, edited_triple: Optional[Dict],
     return None
 
 
-def render_triple_edit_modal(idx: int, triple: Dict) -> Tuple[bool, Dict]:
+def render_triple_edit_modal(idx: int, triple: Dict) -> Tuple[str, Optional[Dict]]:
     """
-    渲染三元组编辑弹窗
+    渲染三元组编辑表单（置顶卡片，跨 rerun 保持可保存）
 
     Args:
         idx: 三元组索引
         triple: 原始三元组
 
     Returns:
-        (是否保存, 编辑后的三元组)
+        (动作, 编辑后的三元组) 动作: '' | 'save' | 'cancel'
     """
-    st.markdown("#### ✏ 编辑三元组")
+    st.markdown(
+        '<div style="background: var(--color-primary-50); border: 1px solid var(--color-primary-200); '
+        'border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 0.75rem;">'
+        '<div style="font-weight: 600; color: var(--color-primary-700); margin-bottom: 0.5rem;">✏ 编辑三元组 #' + str(idx + 1) + '</div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
-    # 头实体
-    st.markdown("**头实体**")
-    head = st.text_input("名称", value=triple.get('head', ''), key=f"edit_head_{idx}")
-    head_type = st.text_input("类型", value=triple.get('head_type', ''), key=f"edit_head_type_{idx}")
-
-    st.markdown("**头实体属性**")
-    head_props = render_properties_editor(triple.get('head_properties', {}), f"head_{idx}")
-
-    # 关系
-    st.markdown("**关系**")
-    relation = st.text_input("关系类型", value=triple.get('relation', ''), key=f"edit_relation_{idx}")
-
-    # 尾实体
-    st.markdown("**尾实体**")
-    tail = st.text_input("名称", value=triple.get('tail', ''), key=f"edit_tail_{idx}")
-    tail_type = st.text_input("类型", value=triple.get('tail_type', ''), key=f"edit_tail_type_{idx}")
-
-    st.markdown("**尾实体属性**")
-    tail_props = render_properties_editor(triple.get('tail_properties', {}), f"tail_{idx}")
+    col_h, col_r, col_t = st.columns(3)
+    with col_h:
+        st.markdown("**头实体**")
+        head = st.text_input("名称", value=triple.get('head', ''), key=f"edit_head_{idx}", label_visibility="collapsed")
+        head_type = st.text_input("类型", value=triple.get('head_type', ''), key=f"edit_head_type_{idx}", label_visibility="collapsed")
+        st.caption("头实体属性")
+        head_props = render_properties_editor(triple.get('head_properties', {}), f"head_{idx}")
+    with col_r:
+        st.markdown("**关系**")
+        relation = st.text_input("关系类型", value=triple.get('relation', ''), key=f"edit_relation_{idx}", label_visibility="collapsed")
+    with col_t:
+        st.markdown("**尾实体**")
+        tail = st.text_input("名称", value=triple.get('tail', ''), key=f"edit_tail_{idx}", label_visibility="collapsed")
+        tail_type = st.text_input("类型", value=triple.get('tail_type', ''), key=f"edit_tail_type_{idx}", label_visibility="collapsed")
+        st.caption("尾实体属性")
+        tail_props = render_properties_editor(triple.get('tail_properties', {}), f"tail_{idx}")
 
     # 按钮
     col1, col2 = st.columns(2)
     with col1:
-        cancel = st.button("取消", key=f"cancel_edit_{idx}", use_container_width=True)
+        cancel_clicked = st.button("取消", key=f"cancel_edit_{idx}", use_container_width=True)
     with col2:
-        save = st.button("保存", key=f"save_edit_{idx}", type="primary", use_container_width=True)
+        save_clicked = st.button("保存", key=f"save_edit_{idx}", type="primary", use_container_width=True)
 
-    if save:
+    if save_clicked:
         edited_triple = {
             'head': head,
             'head_type': head_type,
@@ -269,30 +297,55 @@ def render_triple_edit_modal(idx: int, triple: Dict) -> Tuple[bool, Dict]:
             'tail_type': tail_type,
             'tail_properties': tail_props
         }
-        return True, edited_triple
+        _clear_new_prop_slots(idx)
+        return 'save', edited_triple
 
-    return False, triple
+    if cancel_clicked:
+        _clear_new_prop_slots(idx)
+        return 'cancel', None
+
+    return '', None
+
+
+def _clear_new_prop_slots(idx: int):
+    """清理编辑表单中动态新增属性行的 session_state，避免下次编辑残留"""
+    for prefix in (f"head_{idx}", f"tail_{idx}"):
+        st.session_state.pop(f"_new_props_{prefix}", None)
 
 
 def render_properties_editor(properties: Dict, prefix: str) -> Dict:
-    """渲染属性编辑器"""
+    """渲染属性编辑器（支持编辑已有属性 + 动态新增多组属性）"""
     edited_props = {}
 
+    # 已有属性
     for key, value in properties.items():
         new_value = st.text_input(
-            key,
+            str(key),
             value=str(value),
-            key=f"prop_{prefix}_{key}"
+            key=f"prop_{prefix}_{key}",
+            label_visibility="collapsed",
+            placeholder=str(key)
         )
         edited_props[key] = new_value
 
-    # 添加新属性
-    st.markdown("---")
-    new_key = st.text_input("新属性名", key=f"new_prop_key_{prefix}")
-    new_value = st.text_input("新属性值", key=f"new_prop_value_{prefix}")
+    # 新增属性（动态多行）
+    new_props_key = f"_new_props_{prefix}"
+    if new_props_key not in st.session_state:
+        st.session_state[new_props_key] = [{}]
 
-    if new_key and new_value:
-        edited_props[new_key] = new_value
+    st.markdown('<div style="font-size: 0.75rem; color: var(--text-tertiary); margin: 0.25rem 0;">新增属性</div>', unsafe_allow_html=True)
+    for i, slot in enumerate(st.session_state[new_props_key]):
+        ck, cv = st.columns(2)
+        with ck:
+            slot['key'] = st.text_input("属性名", value=slot.get('key', ''), key=f"newk_{prefix}_{i}", label_visibility="collapsed", placeholder="属性名")
+        with cv:
+            slot['value'] = st.text_input("属性值", value=slot.get('value', ''), key=f"newv_{prefix}_{i}", label_visibility="collapsed", placeholder="属性值")
+        if slot.get('key'):
+            edited_props[slot['key']] = slot.get('value', '')
+
+    if st.button("+ 添加属性行", key=f"addprop_{prefix}", use_container_width=True):
+        st.session_state[new_props_key].append({})
+        st.rerun()
 
     return edited_props
 
@@ -374,16 +427,3 @@ def save_review_state(review_state: TripleReviewState):
         'edited_triples': review_state.edited_triples,
         'current_page': review_state.current_page
     }
-
-
-def load_review_state() -> Optional[TripleReviewState]:
-    """从session_state加载审核状态"""
-    saved = st.session_state.get('triples_review_state')
-    if saved:
-        return TripleReviewState(
-            triples=saved['triples'],
-            review_status=saved['review_status'],
-            edited_triples=saved['edited_triples'],
-            current_page=saved['current_page']
-        )
-    return None

@@ -1,0 +1,22 @@
+# Docker 构建排除（减小镜像体积、避免泄漏本地状态）
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+.git/
+.gitignore
+.idea/
+.vscode/
+
+.data/
+.streamlit/secrets.toml
+.env
+.env.local
+.env.example
+*.log
+tests/
+scripts/

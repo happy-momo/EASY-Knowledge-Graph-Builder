@@ -124,11 +124,12 @@ class TestCypherGenerator(unittest.TestCase):
         self.assertEqual(sanitize_identifier("Person' OR '1'='1"), "PersonOR11")
 
     def test_sanitize_string(self):
-        """测试字符串清理"""
+        """测试字符串清理：参数化值仅移除控制字符，不再转义引号（避免数据损坏）"""
         from utils.cypher_generator import sanitize_string
 
         self.assertEqual(sanitize_string("Hello"), "Hello")
-        self.assertEqual(sanitize_string("Hello'World"), "Hello\\'World")
+        # 单引号原样保留（值通过 $param 参数化传递，无需转义）
+        self.assertEqual(sanitize_string("Hello'World"), "Hello'World")
         self.assertEqual(sanitize_string(""), "")
 
     def test_generate_cypher_safe(self):
