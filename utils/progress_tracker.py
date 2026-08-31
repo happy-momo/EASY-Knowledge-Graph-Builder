@@ -273,7 +273,21 @@ class ProgressTracker:
         )
 
     def _is_progress_stale(self) -> bool:
-        """检查进度数据是否过时（超过5分钟）"""
+        """检查进度数据是否过时（超过5分钟）
+
+        仅当任务仍处于 RUNNING 但长时间无更新时才判定为陈旧失效。
+        若用户已显式暂停（PAUSED，例如点击"终止任务"后保存的进度），
+        即使时间较久也仍可恢复，否则重新打开应用会丢失已保存的进度。
+        """
+        status = self._progress.status
+        # 显式暂停的任务不因时间过期而失效
+        if status == ProcessStatus.PAUSED.value:
+            return False
+
+        # 其余状态（含 RUNNING）逾期超过 5 分钟视为失效
+        if status != ProcessStatus.RUNNING.value:
+            # 非暂停且非运行中（IDLE/COMPLETED/ERROR）无需作为恢复依据
+            pass
         try:
             data_dir = state_manager.data_dir
             progress_file = data_dir / "progress.json"

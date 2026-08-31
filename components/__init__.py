@@ -77,6 +77,10 @@ from .process_display import (
     render_loading_animation
 )
 
+from .process_runner import (
+    render_processing_fragment
+)
+
 
 __all__ = [
     # 原有
@@ -142,5 +146,8 @@ __all__ = [
     "render_recent_triples",
     "render_completion_page",
     "render_error_page",
-    "render_loading_animation"
+    "render_loading_animation",
+
+    # 抽取运行
+    "render_processing_fragment"
 ]

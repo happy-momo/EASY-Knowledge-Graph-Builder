@@ -1,6 +1,6 @@
 # Knowledge Graph Builder 依赖列表
 # 核心框架
-streamlit==1.32.0
+streamlit>=1.36.0
 
 # 大语言模型相关
 langchain>=0.2.0
